@@ -1,0 +1,40 @@
+# Archives and local transfer bundles
+*.tar
+*.tar.gz
+*.zip
+LongTailRec_code_only.tar.gz
+
+# Model checkpoints and runtime outputs
+ckpt/
+saved/
+*.pth
+*.pt
+*.ckpt
+
+# Logs and generated analysis outputs
+log/
+log_runs/
+log_tensorboard/
+analysis_results/
+*.log
+
+# Dataset files. Keep processing scripts, exclude raw/processed data.
+dataset/*
+!dataset/process/
+!dataset/process/**/*.py
+!dataset/process/**/*.sh
+!dataset/process/**/*.md
+dataset/process/raw/
+*.inter
+*.item
+*_id_map.json
+*.stats.json
+
+# Python/cache/editor noise
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+
+# Local duplicate/backup folders
+models copy/
