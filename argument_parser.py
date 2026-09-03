@@ -229,6 +229,17 @@ def add_model_arguments(parser, base_model, dataset):
         parser.add_argument('--initializer_range', default=0.02, type=float)
         if base_model == 'CANDSWEARec':
             add_cands_arguments(parser)
+    elif base_model in {'FMLPRec', 'CANDSFMLPRec'}:
+        parser.add_argument('--hidden_size', default=64, type=int)
+        parser.add_argument('--n_layers', default=2, type=int)
+        parser.add_argument('--inner_size', default=256, type=int)
+        parser.add_argument('--hidden_dropout_prob', default=0.5, type=float)
+        parser.add_argument('--loss_type', default='CE', type=str)
+        parser.add_argument('--hidden_act', default='gelu', type=str)
+        parser.add_argument('--layer_norm_eps', default=1e-12, type=float)
+        parser.add_argument('--initializer_range', default=0.02, type=float)
+        if base_model == 'CANDSFMLPRec':
+            add_cands_arguments(parser)
     elif base_model == 'BSARec':
         parser.add_argument('--c', default=4, type=int)
         parser.add_argument('--alpha', default=0.5, type=float)

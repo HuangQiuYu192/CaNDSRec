@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 NAME_RE = re.compile(
-    r"^(?P<dataset>.+)_(?P<model>SASRec|CANDSSASRec|WEARec|CANDSWEARec)_h(?P<hidden>\d+)_len(?P<max_len>\d+)(?:_temp(?P<temp>.+))?$"
+    r"^(?P<dataset>.+)_(?P<model>SASRec|CANDSSASRec|WEARec|CANDSWEARec|FMLPRec|CANDSFMLPRec)_h(?P<hidden>\d+)_len(?P<max_len>\d+)(?:_temp(?P<temp>.+))?$"
 )
 METRICS = ["recall@5", "recall@10", "recall@20", "ndcg@5", "ndcg@10", "ndcg@20"]
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -86,7 +86,14 @@ def main():
             row[metric] = float(result.get(metric, 0.0))
         rows.append(row)
 
-    baseline_rank = {"SASRec": 0, "WEARec": 0, "CANDSSASRec": 1, "CANDSWEARec": 1}
+    baseline_rank = {
+        "SASRec": 0,
+        "WEARec": 0,
+        "FMLPRec": 0,
+        "CANDSSASRec": 1,
+        "CANDSWEARec": 1,
+        "CANDSFMLPRec": 1,
+    }
     rows.sort(
         key=lambda r: (
             r["dataset"],
