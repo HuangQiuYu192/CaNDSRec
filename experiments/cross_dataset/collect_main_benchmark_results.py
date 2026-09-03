@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 NAME_RE = re.compile(
-    r"^(?P<dataset>.+)_(?P<model>SASRec|CANDSSASRec)_h(?P<hidden>\d+)_len(?P<max_len>\d+)(?:_temp(?P<temp>.+))?$"
+    r"^(?P<dataset>.+)_(?P<model>SASRec|CANDSSASRec|WEARec|CANDSWEARec)_h(?P<hidden>\d+)_len(?P<max_len>\d+)(?:_temp(?P<temp>.+))?$"
 )
 METRICS = ["recall@5", "recall@10", "recall@20", "ndcg@5", "ndcg@10", "ndcg@20"]
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -86,7 +86,17 @@ def main():
             row[metric] = float(result.get(metric, 0.0))
         rows.append(row)
 
-    rows.sort(key=lambda r: (r["dataset"], r["hidden"], r["max_len"], r["model"] != "SASRec", str(r["temp"])))
+    baseline_rank = {"SASRec": 0, "WEARec": 0, "CANDSSASRec": 1, "CANDSWEARec": 1}
+    rows.sort(
+        key=lambda r: (
+            r["dataset"],
+            r["hidden"],
+            r["max_len"],
+            baseline_rank.get(r["model"], 9),
+            r["model"],
+            str(r["temp"]),
+        )
+    )
     headers = ["dataset", "hidden", "max_len", "model", "temp", *METRICS]
 
     out_csv = Path(args.out_csv) if args.out_csv else log_dir / "summary.csv"

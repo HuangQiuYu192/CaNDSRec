@@ -1,5 +1,6 @@
 from .BERT4Rec import BERT4Rec
 from .CANDSSASRec import CANDSSASRec
+from .CANDSWEARec import CANDSWEARec
 from .CalibratedCANDSSASRec import CalibratedCANDSSASRec
 from .DataAwareTempCANDSSASRec import DataAwareTempCANDSSASRec
 from .LearnableTempCANDSSASRec import LearnableTempCANDSSASRec
@@ -23,6 +24,7 @@ MODEL_DICT = {
     "GRU4Rec": GRU4Rec,
     "SASRec": SASRec,
     "CANDSSASRec": CANDSSASRec,
+    "CANDSWEARec": CANDSWEARec,
     "CalibratedCANDSSASRec": CalibratedCANDSSASRec,
     "DataAwareTempCANDSSASRec": DataAwareTempCANDSSASRec,
     "LearnableTempCANDSSASRec": LearnableTempCANDSSASRec,

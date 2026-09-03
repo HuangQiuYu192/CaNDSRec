@@ -216,7 +216,7 @@ def add_model_arguments(parser, base_model, dataset):
         parser.add_argument('--hidden_act', default='gelu', type=str)
         parser.add_argument('--layer_norm_eps', default=1e-12, type=float)
         parser.add_argument('--initializer_range', default=0.02, type=float)
-    elif base_model == 'WEARec':
+    elif base_model in {'WEARec', 'CANDSWEARec'}:
         parser.add_argument('--num_heads', default=1, type=int)
         parser.add_argument('--alpha', default=0.8, type=float)
         parser.add_argument('--layer_norm_eps', default=1e-12, type=float)
@@ -227,6 +227,8 @@ def add_model_arguments(parser, base_model, dataset):
         parser.add_argument('--loss_type', default='CE', type=str)
         parser.add_argument('--hidden_act', default='gelu', type=str)
         parser.add_argument('--initializer_range', default=0.02, type=float)
+        if base_model == 'CANDSWEARec':
+            add_cands_arguments(parser)
     elif base_model == 'BSARec':
         parser.add_argument('--c', default=4, type=int)
         parser.add_argument('--alpha', default=0.5, type=float)
