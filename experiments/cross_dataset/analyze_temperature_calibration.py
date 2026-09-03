@@ -9,6 +9,11 @@ dot-product logits with raw cosine logits:
 
 This provides a lightweight diagnostic for whether temperature mainly restores
 the logit scale removed by normalization.
+
+It also reports Adap-tau inspired estimates. Adap-tau uses a global temperature
+derived from the positive-vs-background cosine gap and interaction density. In
+this codebase the CAND score is T * cosine, so the reported temperature is the
+inverse of Adap-tau's tau.
 """
 
 from __future__ import annotations
@@ -105,7 +110,22 @@ def build_runtime(args: argparse.Namespace):
     model.load_state_dict(checkpoint["state_dict"], strict=False)
     model.load_other_parameter(checkpoint.get("other_parameter"))
     model.eval()
-    return config, dataset, valid_data, test_data, model
+    return config, dataset, train_data, valid_data, test_data, model
+
+
+def dataset_size(train_data, dataset) -> tuple[int, int, int]:
+    user_num = int(getattr(dataset, "user_num", 0))
+    item_num = int(getattr(dataset, "item_num", 0))
+    inter_feat = getattr(train_data.dataset, "inter_feat", None)
+    if inter_feat is not None:
+        train_interactions = int(len(inter_feat))
+    else:
+        train_interactions = int(getattr(train_data.dataset, "inter_num", 0))
+    return user_num, item_num, train_interactions
+
+
+def safe_ratio(numerator: float, denominator: float, eps: float = 1e-12) -> float:
+    return float(numerator / denominator) if denominator > eps else 0.0
 
 
 def sample_negative_items(
@@ -124,11 +144,12 @@ def sample_negative_items(
 
 
 def collect_stats(args: argparse.Namespace) -> dict[str, float | int | str]:
-    config, dataset, valid_data, test_data, model = build_runtime(args)
+    config, dataset, train_data, valid_data, test_data, model = build_runtime(args)
     data = valid_data if args.split == "valid" else test_data
     device = config["device"]
     generator = torch.Generator(device=device)
     generator.manual_seed(args.sample_seed)
+    user_num, item_num, train_interactions = dataset_size(train_data, dataset)
 
     item_emb = model.item_embedding.weight.detach()
     item_dir = F.normalize(item_emb, dim=-1)
@@ -138,6 +159,8 @@ def collect_stats(args: argparse.Namespace) -> dict[str, float | int | str]:
     pos_cos: list[float] = []
     neg_dot: list[float] = []
     neg_cos: list[float] = []
+    hard_dot_values: list[float] = []
+    hard_cos_values: list[float] = []
     margin_dot: list[float] = []
     margin_cos: list[float] = []
 
@@ -180,6 +203,8 @@ def collect_stats(args: argparse.Namespace) -> dict[str, float | int | str]:
             pos_cos.extend(p_cos.detach().cpu().numpy().tolist())
             neg_dot.extend(n_dot.flatten().detach().cpu().numpy().tolist())
             neg_cos.extend(n_cos.flatten().detach().cpu().numpy().tolist())
+            hard_dot_values.extend(hard_dot.detach().cpu().numpy().tolist())
+            hard_cos_values.extend(hard_cos.detach().cpu().numpy().tolist())
             margin_dot.extend((p_dot - hard_dot).detach().cpu().numpy().tolist())
             margin_cos.extend((p_cos - hard_cos).detach().cpu().numpy().tolist())
             examples += len(positive_i)
@@ -193,6 +218,8 @@ def collect_stats(args: argparse.Namespace) -> dict[str, float | int | str]:
     pos_cos_s = summarize(pos_cos)
     neg_dot_s = summarize(neg_dot)
     neg_cos_s = summarize(neg_cos)
+    hard_dot_s = summarize(hard_dot_values)
+    hard_cos_s = summarize(hard_cos_values)
 
     temp_by_logit_std = dot_s["std"] / cos_s["std"] if cos_s["std"] > 0 else 0.0
     temp_by_margin_std = margin_dot_s["std"] / margin_cos_s["std"] if margin_cos_s["std"] > 0 else 0.0
@@ -201,6 +228,19 @@ def collect_stats(args: argparse.Namespace) -> dict[str, float | int | str]:
         if abs(pos_cos_s["mean"] - neg_cos_s["mean"]) > 1e-12
         else 0.0
     )
+    density_denominator = max(2 * train_interactions, 1)
+    density_ratio = max((user_num * item_num) / density_denominator, 1.0)
+    adap_log_density = float(np.log(density_ratio))
+    log_item_num = float(np.log(max(item_num, 2)))
+    log_sample_items = float(np.log(max(args.sample_items, 2)))
+
+    gap_pos_all_cosine = pos_cos_s["mean"] - cos_s["mean"]
+    gap_pos_neg_cosine = pos_cos_s["mean"] - neg_cos_s["mean"]
+    gap_pos_hard_cosine = pos_cos_s["mean"] - hard_cos_s["mean"]
+
+    temp_by_adaptau_all_gap = safe_ratio(adap_log_density, gap_pos_all_cosine)
+    temp_by_adaptau_neg_gap = safe_ratio(log_item_num, gap_pos_neg_cosine)
+    temp_by_adaptau_hard_gap = safe_ratio(log_sample_items, gap_pos_hard_cosine)
 
     return {
         "dataset": args.dataset,
@@ -208,6 +248,9 @@ def collect_stats(args: argparse.Namespace) -> dict[str, float | int | str]:
         "max_len": args.max_item_list_length,
         "split": args.split,
         "checkpoint": args.checkpoint,
+        "user_num": user_num,
+        "item_num": item_num,
+        "train_interactions": train_interactions,
         "sample_items": args.sample_items,
         "batches": batches,
         "examples": examples,
@@ -219,9 +262,20 @@ def collect_stats(args: argparse.Namespace) -> dict[str, float | int | str]:
         "temp_by_margin_std": temp_by_margin_std,
         "pos_dot_mean": pos_dot_s["mean"],
         "neg_dot_mean": neg_dot_s["mean"],
+        "hard_dot_mean": hard_dot_s["mean"],
         "pos_cosine_mean": pos_cos_s["mean"],
         "neg_cosine_mean": neg_cos_s["mean"],
+        "hard_cosine_mean": hard_cos_s["mean"],
         "temp_by_pos_neg_gap": temp_by_pos_neg_gap,
+        "adap_log_density": adap_log_density,
+        "log_item_num": log_item_num,
+        "log_sample_items": log_sample_items,
+        "gap_pos_all_cosine": gap_pos_all_cosine,
+        "gap_pos_neg_cosine": gap_pos_neg_cosine,
+        "gap_pos_hard_cosine": gap_pos_hard_cosine,
+        "temp_by_adaptau_all_gap": temp_by_adaptau_all_gap,
+        "temp_by_adaptau_neg_gap": temp_by_adaptau_neg_gap,
+        "temp_by_adaptau_hard_gap": temp_by_adaptau_hard_gap,
         "dot_margin_mean": margin_dot_s["mean"],
         "cosine_margin_mean": margin_cos_s["mean"],
         "dot_p25": dot_s["p25"],
