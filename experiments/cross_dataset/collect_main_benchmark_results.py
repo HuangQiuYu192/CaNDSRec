@@ -10,14 +10,29 @@ NAME_RE = re.compile(
     r"^(?P<dataset>.+)_(?P<model>SASRec|CANDSSASRec)_h(?P<hidden>\d+)_len(?P<max_len>\d+)(?:_temp(?P<temp>.+))?$"
 )
 METRICS = ["recall@5", "recall@10", "recall@20", "ndcg@5", "ndcg@10", "ndcg@20"]
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+METRIC_RE = re.compile(r"((?:recall|ndcg)@\d+)\s*[:=]\s*([0-9]*\.?[0-9]+(?:e[-+]?\d+)?)", re.I)
 
 
 def parse_test_result(log_path):
-    text = log_path.read_text(encoding="utf-8", errors="ignore")
-    matches = re.findall(r"test result:\s*(\{[^}]+\})", text)
-    if not matches:
+    text = ANSI_RE.sub("", log_path.read_text(encoding="utf-8", errors="ignore"))
+    lower = text.lower()
+    marker = "test result"
+    pos = lower.rfind(marker)
+    if pos < 0:
         return None
-    return ast.literal_eval(matches[-1])
+    block = text[pos : pos + 4000]
+
+    dict_match = re.search(r"\{[^}]+\}", block, flags=re.S)
+    if dict_match:
+        return ast.literal_eval(dict_match.group(0))
+
+    ordered_match = re.search(r"OrderedDict\((\[[\s\S]*?\])\)", block)
+    if ordered_match:
+        return dict(ast.literal_eval(ordered_match.group(1)))
+
+    metrics = {name.lower(): float(value) for name, value in METRIC_RE.findall(block)}
+    return metrics or None
 
 
 def parse_log_name(log_path):
