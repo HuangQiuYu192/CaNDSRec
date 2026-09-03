@@ -17,3 +17,7 @@ python experiments/cross_dataset/compare_temperature_selection_methods.py \
 echo
 echo "Aggregate:"
 cat "$OUT_DIR/aggregate.md"
+
+echo
+echo "Aggregate by hidden size:"
+cat "$OUT_DIR/aggregate_by_hidden.md"

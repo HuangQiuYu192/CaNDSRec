@@ -168,6 +168,25 @@ def aggregate(rows: list[dict]) -> list[dict]:
     )
 
 
+def aggregate_by_hidden(rows: list[dict]) -> list[dict]:
+    output = []
+    hidden_values = sorted({int(row["hidden"]) for row in rows})
+    for hidden in hidden_values:
+        hidden_rows = [row for row in rows if int(row["hidden"]) == hidden]
+        for row in aggregate(hidden_rows):
+            row = dict(row)
+            row["hidden"] = hidden
+            output.append(row)
+    return sorted(
+        output,
+        key=lambda row: (
+            row["hidden"],
+            -row["avg_ndcg@10_retention_vs_grid_best"],
+            -row["avg_delta_ndcg@10_vs_sasrec"],
+        ),
+    )
+
+
 def write_csv(rows: list[dict], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     headers = list(rows[0].keys()) if rows else []
@@ -274,6 +293,8 @@ def main() -> None:
     per_setting_md = out_dir / "per_setting.md"
     aggregate_csv = out_dir / "aggregate.csv"
     aggregate_md = out_dir / "aggregate.md"
+    aggregate_by_hidden_csv = out_dir / "aggregate_by_hidden.csv"
+    aggregate_by_hidden_md = out_dir / "aggregate_by_hidden.md"
     missing_path = out_dir / "missing_settings.txt"
 
     write_csv(output_rows, per_setting_csv)
@@ -295,11 +316,28 @@ def main() -> None:
     )
 
     aggregate_rows = aggregate(output_rows)
+    aggregate_hidden_rows = aggregate_by_hidden(output_rows)
     write_csv(aggregate_rows, aggregate_csv)
     write_markdown(
         aggregate_rows,
         aggregate_md,
         [
+            "method",
+            "num_settings",
+            "avg_recall@10",
+            "avg_ndcg@10",
+            "avg_rel_recall@10_vs_sasrec",
+            "avg_rel_ndcg@10_vs_sasrec",
+            "avg_ndcg@10_retention_vs_grid_best",
+            "wins_vs_sasrec_ndcg@10",
+        ],
+    )
+    write_csv(aggregate_hidden_rows, aggregate_by_hidden_csv)
+    write_markdown(
+        aggregate_hidden_rows,
+        aggregate_by_hidden_md,
+        [
+            "hidden",
             "method",
             "num_settings",
             "avg_recall@10",
@@ -317,6 +355,7 @@ def main() -> None:
 
     print(f"wrote {len(output_rows)} method rows to {per_setting_csv}")
     print(f"wrote {len(aggregate_rows)} aggregate rows to {aggregate_csv}")
+    print(f"wrote {len(aggregate_hidden_rows)} hidden aggregate rows to {aggregate_by_hidden_csv}")
     if missing:
         print(f"missing {len(missing)} settings; see {missing_path}")
 
