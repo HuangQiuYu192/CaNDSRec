@@ -11,7 +11,11 @@ from pathlib import Path
 
 METRICS = ["recall@5", "recall@10", "recall@20", "ndcg@5", "ndcg@10", "ndcg@20"]
 DEFAULT_BACKBONES = {
-    "SASRec": ("SASRec", "CANDSSASRec", "log_runs/main_benchmark_grid/summary.csv"),
+    "SASRec": (
+        "SASRec",
+        "CANDSSASRec",
+        "log_runs/main_benchmark_grid/summary.csv,log_runs/beauty_sasrec_h128_grid_gpu0/summary.csv",
+    ),
     "WEARec": ("WEARec", "CANDSWEARec", "log_runs/beauty_wearec_cands_grid/summary.csv"),
     "FMLPRec": ("FMLPRec", "CANDSFMLPRec", "log_runs/beauty_fmlprec_cands_grid_gpu0/summary.csv"),
 }
@@ -58,6 +62,21 @@ def group_rows(rows: list[dict[str, str]]) -> dict[tuple[str, int, int, str], li
     return grouped
 
 
+def read_many_csv(paths: str) -> tuple[list[dict[str, str]], list[str]]:
+    rows = []
+    missing = []
+    for raw_path in paths.split(","):
+        raw_path = raw_path.strip()
+        if not raw_path:
+            continue
+        path = Path(raw_path)
+        if not path.exists():
+            missing.append(raw_path)
+            continue
+        rows.extend(read_csv(path))
+    return rows, missing
+
+
 def best_row(rows: list[dict[str, str]], metric: str) -> dict[str, str]:
     return max(rows, key=lambda row: as_float(row.get(metric)))
 
@@ -93,11 +112,12 @@ def main() -> None:
     missing = []
 
     for backbone, (base_model, cands_model, summary_path) in specs.items():
-        path = Path(summary_path)
-        if not path.exists():
-            missing.append(f"{backbone}: missing summary {summary_path}")
+        summary_rows, missing_paths = read_many_csv(summary_path)
+        for missing_path in missing_paths:
+            missing.append(f"{backbone}: missing summary {missing_path}")
+        if not summary_rows:
             continue
-        grouped = group_rows(read_csv(path))
+        grouped = group_rows(summary_rows)
         settings = sorted(
             {
                 (dataset, hidden, max_len)
