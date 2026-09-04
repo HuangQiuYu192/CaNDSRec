@@ -1,5 +1,6 @@
 from .BERT4Rec import BERT4Rec
 from .CANDSSASRec import CANDSSASRec
+from .AngularSmoothCANDSSASRec import AngularSmoothCANDSSASRec
 from .CANDSFMLPRec import CANDSFMLPRec
 from .CANDSWEARec import CANDSWEARec
 from .CalibratedCANDSSASRec import CalibratedCANDSSASRec
@@ -25,6 +26,7 @@ MODEL_DICT = {
     "GRU4Rec": GRU4Rec,
     "SASRec": SASRec,
     "CANDSSASRec": CANDSSASRec,
+    "AngularSmoothCANDSSASRec": AngularSmoothCANDSSASRec,
     "CANDSFMLPRec": CANDSFMLPRec,
     "CANDSWEARec": CANDSWEARec,
     "CalibratedCANDSSASRec": CalibratedCANDSSASRec,
