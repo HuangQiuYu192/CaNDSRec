@@ -18,6 +18,9 @@ log_tensorboard/
 analysis_results/
 *.log
 
+# Local manuscript drafts and paper assets
+paper_draft/
+
 # Dataset files. Keep processing scripts, exclude raw/processed data.
 dataset/*
 !dataset/process/
