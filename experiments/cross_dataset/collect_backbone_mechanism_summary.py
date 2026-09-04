@@ -11,10 +11,11 @@ from pathlib import Path
 
 
 DEFAULT_SPECS = {
+    "SASRec": ("SASRec", "CANDSSASRec", "analysis_results/beauty_sasrec_mechanism"),
     "WEARec": ("WEARec", "CANDSWEARec", "analysis_results/beauty_wearec_mechanism"),
     "FMLPRec": ("FMLPRec", "CANDSFMLPRec", "analysis_results/beauty_fmlprec_mechanism"),
 }
-FILENAME_RE = re.compile(r"(?P<dataset>.+)_(?P<base>WEARec|FMLPRec)_vs_CANDS_h(?P<hidden>\d+)_len(?P<max_len>\d+)_temp(?P<temp>.+)\.csv$")
+FILENAME_RE = re.compile(r"(?P<dataset>.+)_(?P<base>SASRec|WEARec|FMLPRec)_vs_CANDS_h(?P<hidden>\d+)_len(?P<max_len>\d+)_temp(?P<temp>.+)\.csv$")
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
