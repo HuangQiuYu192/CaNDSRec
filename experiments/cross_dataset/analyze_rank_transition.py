@@ -68,7 +68,7 @@ def summarize(values: np.ndarray) -> dict[str, float]:
     }
 
 
-def hit_metrics(ranks: np.ndarray, ks=(5, 10, 20)) -> dict[str, float]:
+def hit_metrics(ranks: np.ndarray, ks=(5, 10, 20, 50, 100)) -> dict[str, float]:
     ranks = ranks.astype(np.float64)
     output = {}
     for k in ks:
@@ -348,6 +348,18 @@ def write_markdown(path: Path, rows: list[dict]) -> None:
         "cands_recall@10",
         "base_ndcg@10",
         "cands_ndcg@10",
+        "base_recall@20",
+        "cands_recall@20",
+        "base_ndcg@20",
+        "cands_ndcg@20",
+        "base_recall@50",
+        "cands_recall@50",
+        "base_ndcg@50",
+        "cands_ndcg@50",
+        "base_recall@100",
+        "cands_recall@100",
+        "base_ndcg@100",
+        "cands_ndcg@100",
         "delta_rank_mean",
         "delta_rank_p50",
         "delta_rank_p75",
