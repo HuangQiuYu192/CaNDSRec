@@ -9,7 +9,7 @@ from pathlib import Path
 NAME_RE = re.compile(
     r"^(?P<dataset>.+)_AngularSmoothCANDSSASRec_h(?P<hidden>\d+)_len(?P<max_len>\d+)"
     r"_temp(?P<temp>[^_]+)_w(?P<weight>[^_]+)_k(?P<k>\d+)_st(?P<smooth_temp>[^_]+)"
-    r"_q(?P<quantile>[^_]+)_thr(?P<threshold>[^_]+)$"
+    r"_q(?P<quantile>[^_]+)_thr(?P<threshold>[^_]+)(?:_.*)?$"
 )
 METRICS = ["recall@5", "recall@10", "recall@20", "ndcg@5", "ndcg@10", "ndcg@20"]
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
