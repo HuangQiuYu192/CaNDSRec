@@ -132,12 +132,14 @@ order = {"CaNDS_h256_temp10": 0, "AS_best_ndcg": 1, "AS_best_recall": 2, "AS_sta
 group_order = {"all": 0, "head": 1, "mid": 2, "tail": 3}
 rows.sort(key=lambda r: (order.get(r["tag"], 99), group_order.get(r["group"], 99)))
 
-headers = [
+preferred = [
     "tag", "model", "hidden", "temperature", "angular_smooth_weight", "angular_smooth_k",
     "angular_smooth_temperature", "angular_smooth_sim_threshold", "group", "n", "median_rank",
     "recall@5", "recall@10", "recall@20", "recall@50", "recall@100",
     "ndcg@5", "ndcg@10", "ndcg@20", "ndcg@50", "ndcg@100",
 ]
+extra = sorted({key for row in rows for key in row.keys()} - set(preferred))
+headers = preferred + extra
 with (out_dir / "summary.csv").open("w", newline="", encoding="utf-8") as f:
     writer = csv.DictWriter(f, fieldnames=headers)
     writer.writeheader()
