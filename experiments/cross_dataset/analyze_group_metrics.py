@@ -247,9 +247,9 @@ def main() -> None:
     rows = [{**meta, **row} for row in rows]
 
     out_prefix = Path(args.out_prefix)
-    write_csv(out_prefix.with_suffix(".csv"), rows)
-    write_markdown(out_prefix.with_suffix(".md"), rows, cutoffs)
-    out_prefix.with_suffix(".json").write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_csv(Path(f"{out_prefix}.csv"), rows)
+    write_markdown(Path(f"{out_prefix}.md"), rows, cutoffs)
+    Path(f"{out_prefix}.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"wrote grouped metrics to {out_prefix}.csv and {out_prefix}.md")
 
 
