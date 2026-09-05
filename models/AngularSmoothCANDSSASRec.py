@@ -21,12 +21,10 @@ class AngularSmoothCANDSSASRec(CANDSSASRec):
         self.angular_smooth_temperature = float(config["angular_smooth_temperature"])
         self.angular_smooth_pop_quantile = float(config["angular_smooth_pop_quantile"])
         self.angular_smooth_sim_threshold = float(config["angular_smooth_sim_threshold"])
-        self.angular_smooth_pop_weight = bool(config["angular_smooth_pop_weight"])
 
-        item_pop, smooth_mask, smooth_item_weight = self._build_smoothing_buffers(dataset)
+        item_pop, smooth_mask = self._build_smoothing_buffers(dataset)
         self.register_buffer("angular_item_popularity", item_pop)
         self.register_buffer("angular_smooth_mask", smooth_mask)
-        self.register_buffer("angular_smooth_item_weight", smooth_item_weight)
 
     def _build_smoothing_buffers(self, dataset):
         item_ids = dataset.inter_feat[self.ITEM_ID].cpu().numpy()
@@ -35,18 +33,9 @@ class AngularSmoothCANDSSASRec(CANDSSASRec):
         threshold = np.quantile(pop[active], self.angular_smooth_pop_quantile) if active.any() else 0.0
         smooth_mask = active & (pop <= threshold)
 
-        inv_sqrt_pop = np.zeros_like(pop, dtype=np.float32)
-        inv_sqrt_pop[active] = 1.0 / np.sqrt(pop[active])
-        if smooth_mask.any():
-            mean_weight = inv_sqrt_pop[smooth_mask].mean()
-            if mean_weight > 0:
-                inv_sqrt_pop = inv_sqrt_pop / mean_weight
-        inv_sqrt_pop = np.clip(inv_sqrt_pop, 0.0, 5.0)
-
         return (
             torch.tensor(pop, dtype=torch.float32),
             torch.tensor(smooth_mask, dtype=torch.bool),
-            torch.tensor(inv_sqrt_pop, dtype=torch.float32),
         )
 
     def _angular_neighbor_loss(self, logits, pos_items):
@@ -86,12 +75,7 @@ class AngularSmoothCANDSSASRec(CANDSSASRec):
         if not nonempty.any():
             return torch.zeros((), device=logits.device)
 
-        per_sample_loss = per_sample_loss[nonempty]
-        selected_items = selected_items[nonempty]
-        if self.angular_smooth_pop_weight:
-            sample_weight = self.angular_smooth_item_weight[selected_items]
-            return (per_sample_loss * sample_weight).sum() / sample_weight.sum().clamp_min(1e-8)
-        return per_sample_loss.mean()
+        return per_sample_loss[nonempty].mean()
 
     def calculate_loss(self, interaction):
         item_seq = interaction[self.ITEM_SEQ]
