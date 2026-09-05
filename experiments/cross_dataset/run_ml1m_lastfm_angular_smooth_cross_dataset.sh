@@ -145,6 +145,10 @@ train_one() {
     --show_progress True \
     > "$log_file" 2>&1
   grep -E "best valid result|test result" "$log_file" >> "$LOG_DIR/summary.raw" || true
+  if ! grep -q "test result" "$log_file" 2>/dev/null; then
+    echo "[$(date '+%F %T')] ERROR train did not finish: $name. Check $log_file" | tee -a "$LOG_DIR/master.log"
+    return 1
+  fi
   echo "[$(date '+%F %T')] DONE train $name" | tee -a "$LOG_DIR/master.log"
 }
 
@@ -220,6 +224,12 @@ if [ "${#GPUS[@]}" -eq 0 ] || [ "${#GPUS[@]}" -gt 2 ]; then
   echo "ERROR: GPUS_STR must contain one or two GPUs, e.g. '0 1'." >&2
   exit 1
 fi
+for gpu in "${GPUS[@]}"; do
+  if [ "$gpu" != "0" ] && [ "$gpu" != "1" ]; then
+    echo "ERROR: this script is restricted to GPU 0/1. Got gpu=$gpu from GPUS_STR='$GPUS_STR'." >&2
+    exit 1
+  fi
+done
 
 echo "[$(date '+%F %T')] ROOT=$ROOT" | tee -a "$LOG_DIR/master.log"
 echo "[$(date '+%F %T')] datasets=$DATASETS_STR gpus=${GPUS[*]}" | tee -a "$LOG_DIR/master.log"
@@ -229,6 +239,17 @@ for shard in "${!GPUS[@]}"; do
   echo $! > "$LOG_DIR/worker_gpu${GPUS[$shard]}.pid"
 done
 wait
+
+missing=0
+while IFS=$'\t' read -r name dataset; do
+  if ! grep -q "test result" "$LOG_DIR/${name}.log" 2>/dev/null; then
+    echo "[$(date '+%F %T')] ERROR missing test result for $name. Check $LOG_DIR/${name}.log" | tee -a "$LOG_DIR/master.log"
+    missing=1
+  fi
+done < "$TASK_FILE"
+if [ "$missing" -ne 0 ]; then
+  exit 1
+fi
 
 python experiments/cross_dataset/collect_angular_smooth_results.py --log_dir "$LOG_DIR" || true
 
