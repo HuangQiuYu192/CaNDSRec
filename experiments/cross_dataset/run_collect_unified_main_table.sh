@@ -10,9 +10,12 @@ python experiments/cross_dataset/collect_unified_main_table.py \
   --out_dir "${OUT_DIR:-analysis_results/unified_main_table}"
 
 echo
-echo "Overall table:"
-cat "${OUT_DIR:-analysis_results/unified_main_table}/overall_table.md"
+echo "Compact overall table:"
+cat "${OUT_DIR:-analysis_results/unified_main_table}/compact_overall_table.md"
 
 echo
-echo "Grouped table:"
-cat "${OUT_DIR:-analysis_results/unified_main_table}/group_table.md"
+echo "Compact tail delta table:"
+cat "${OUT_DIR:-analysis_results/unified_main_table}/compact_tail_delta_table.md"
+
+echo
+echo "Full tables are saved under ${OUT_DIR:-analysis_results/unified_main_table}/"

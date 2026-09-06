@@ -286,6 +286,99 @@ def write_md(path: Path, rows: list[dict], headers: list[str]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def compact_overall_rows(overall_rows: list[dict], group_rows: list[dict]) -> list[dict]:
+    tail_by_setting = {}
+    for row in group_rows:
+        if row.get("group") != "tail":
+            continue
+        key = (
+            row.get("dataset"),
+            row.get("method"),
+            parse_int(row.get("hidden")),
+            parse_int(row.get("max_len")),
+        )
+        tail_by_setting[key] = row
+
+    output = []
+    for row in overall_rows:
+        key = (row.get("dataset"), row.get("method"), parse_int(row.get("hidden")), parse_int(row.get("max_len")))
+        tail = tail_by_setting.get(key, {})
+        output.append(
+            {
+                "dataset": row.get("dataset"),
+                "method": row.get("method"),
+                "hidden": row.get("hidden"),
+                "max_len": row.get("max_len"),
+                "temp": row.get("temp"),
+                "recall@10": parse_float(row.get("recall@10")),
+                "ndcg@10": parse_float(row.get("ndcg@10")),
+                "recall@20": parse_float(row.get("recall@20")),
+                "ndcg@20": parse_float(row.get("ndcg@20")),
+                "rel_ndcg@10_vs_sasrec": parse_float(row.get("rel_ndcg@10_vs_sasrec")),
+                "rel_ndcg@10_vs_cands": parse_float(row.get("rel_ndcg@10_vs_cands")),
+                "tail_recall@10": parse_float(tail.get("recall@10")),
+                "tail_ndcg@10": parse_float(tail.get("ndcg@10")),
+                "tail_recall@50": parse_float(tail.get("recall@50")),
+                "tail_ndcg@50": parse_float(tail.get("ndcg@50")),
+                "tail_median_rank": parse_float(tail.get("median_rank")),
+            }
+        )
+    return output
+
+
+def compact_tail_delta_rows(group_rows: list[dict]) -> list[dict]:
+    by_key = {}
+    for row in group_rows:
+        if row.get("group") != "tail":
+            continue
+        key = (row.get("dataset"), parse_int(row.get("hidden")), parse_int(row.get("max_len")))
+        by_key.setdefault(key, {})[row.get("method")] = row
+
+    rows = []
+    for (dataset, hidden, max_len), methods in sorted(by_key.items()):
+        sas = methods.get("SASRec")
+        cands = methods.get("CaNDS")
+        angular = methods.get("AngularSmooth")
+        if not cands or not angular:
+            continue
+
+        def val(row: dict | None, metric: str) -> float | None:
+            return parse_float(row.get(metric)) if row else None
+
+        row = {
+            "dataset": dataset,
+            "hidden": hidden,
+            "max_len": max_len,
+            "sasrec_tail_recall@10": val(sas, "recall@10"),
+            "cands_tail_recall@10": val(cands, "recall@10"),
+            "angular_tail_recall@10": val(angular, "recall@10"),
+            "sasrec_tail_ndcg@10": val(sas, "ndcg@10"),
+            "cands_tail_ndcg@10": val(cands, "ndcg@10"),
+            "angular_tail_ndcg@10": val(angular, "ndcg@10"),
+            "sasrec_tail_recall@50": val(sas, "recall@50"),
+            "cands_tail_recall@50": val(cands, "recall@50"),
+            "angular_tail_recall@50": val(angular, "recall@50"),
+            "sasrec_tail_median_rank": val(sas, "median_rank"),
+            "cands_tail_median_rank": val(cands, "median_rank"),
+            "angular_tail_median_rank": val(angular, "median_rank"),
+        }
+        for metric in ["recall@10", "ndcg@10", "recall@50"]:
+            cands_value = val(cands, metric)
+            angular_value = val(angular, metric)
+            sas_value = val(sas, metric)
+            if cands_value and angular_value is not None:
+                row[f"angular_rel_tail_{metric}_vs_cands"] = angular_value / cands_value - 1.0
+            if sas_value and angular_value is not None:
+                row[f"angular_rel_tail_{metric}_vs_sasrec"] = angular_value / sas_value - 1.0
+        cands_median = val(cands, "median_rank")
+        angular_median = val(angular, "median_rank")
+        if cands_median and angular_median is not None:
+            row["angular_tail_median_rank_delta_vs_cands"] = angular_median - cands_median
+            row["angular_tail_median_rank_rel_drop_vs_cands"] = 1.0 - angular_median / cands_median
+        rows.append(row)
+    return rows
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--main_log_dir", default="log_runs/main_benchmark_grid")
@@ -332,8 +425,36 @@ def main() -> None:
     write_csv(out_dir / "group_table.csv", group_rows, group_headers)
     write_md(out_dir / "group_table.md", group_rows, group_headers)
 
+    compact_rows = compact_overall_rows(overall_rows, group_rows)
+    compact_headers = [
+        "dataset", "method", "hidden", "max_len", "temp",
+        "recall@10", "ndcg@10", "recall@20", "ndcg@20",
+        "rel_ndcg@10_vs_sasrec", "rel_ndcg@10_vs_cands",
+        "tail_recall@10", "tail_ndcg@10", "tail_recall@50", "tail_ndcg@50",
+        "tail_median_rank",
+    ]
+    write_csv(out_dir / "compact_overall_table.csv", compact_rows, compact_headers)
+    write_md(out_dir / "compact_overall_table.md", compact_rows, compact_headers)
+
+    tail_delta_rows = compact_tail_delta_rows(group_rows)
+    tail_delta_headers = [
+        "dataset", "hidden", "max_len",
+        "sasrec_tail_recall@10", "cands_tail_recall@10", "angular_tail_recall@10",
+        "sasrec_tail_ndcg@10", "cands_tail_ndcg@10", "angular_tail_ndcg@10",
+        "sasrec_tail_recall@50", "cands_tail_recall@50", "angular_tail_recall@50",
+        "sasrec_tail_median_rank", "cands_tail_median_rank", "angular_tail_median_rank",
+        "angular_rel_tail_recall@10_vs_cands", "angular_rel_tail_ndcg@10_vs_cands",
+        "angular_rel_tail_recall@50_vs_cands",
+        "angular_tail_median_rank_delta_vs_cands",
+        "angular_tail_median_rank_rel_drop_vs_cands",
+    ]
+    write_csv(out_dir / "compact_tail_delta_table.csv", tail_delta_rows, tail_delta_headers)
+    write_md(out_dir / "compact_tail_delta_table.md", tail_delta_rows, tail_delta_headers)
+
     print(f"wrote {len(overall_rows)} overall rows to {out_dir / 'overall_table.csv'} and .md")
     print(f"wrote {len(group_rows)} group rows to {out_dir / 'group_table.csv'} and .md")
+    print(f"wrote {len(compact_rows)} compact overall rows to {out_dir / 'compact_overall_table.csv'} and .md")
+    print(f"wrote {len(tail_delta_rows)} compact tail delta rows to {out_dir / 'compact_tail_delta_table.csv'} and .md")
 
 
 if __name__ == "__main__":
