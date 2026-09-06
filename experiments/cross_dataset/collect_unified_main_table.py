@@ -36,6 +36,7 @@ DEFAULT_GROUP_DIRS = [
     "analysis_results/lastfm_len200_angular_smooth_bs512",
     "analysis_results/ml1m_len50_angular_smooth",
     "analysis_results/ml1m_lastfm_len200_angular_smooth_cross_dataset",
+    "analysis_results/sasrec_group_eval",
 ]
 
 
