@@ -4,7 +4,8 @@
 The analysis is checkpoint-only: it compares matched CaNDS and AngularSmooth
 models on the same test instances.  For every target, it measures direct
 transition evidence from the current history and the evidence borrowed by its
-angular neighbors.  Tail targets are then stratified by borrowed evidence.
+angular neighbors. A popularity-matched random-neighbor control tests whether
+the angular neighborhood is more context-relevant than chance.
 """
 
 from __future__ import annotations
@@ -65,6 +66,22 @@ def build_neighbors(model, n_items: int, neighbor_k: int, chunk_size: int) -> tu
     return torch.cat(all_ids).long(), torch.cat(all_weights).float(), torch.cat(all_cosines).float()
 
 
+def popularity_matched_random_neighbors(neighbor_ids: torch.Tensor, pop: np.ndarray, bins: int, seed: int) -> torch.Tensor:
+    """Replace each angular neighbor with a random active item from its popularity bin."""
+    active = pop > 0
+    edges = np.quantile(pop[active], np.linspace(0.0, 1.0, bins + 1))
+    item_bins = np.digitize(pop, edges[1:-1], right=True)
+    pools = [np.where(active & (item_bins == bin_id))[0] for bin_id in range(bins)]
+    rng = np.random.default_rng(seed)
+    flat = neighbor_ids.numpy().reshape(-1)
+    sampled = np.empty_like(flat)
+    for bin_id, pool in enumerate(pools):
+        mask = item_bins[flat] == bin_id
+        if mask.any():
+            sampled[mask] = rng.choice(pool, size=int(mask.sum()), replace=True)
+    return torch.from_numpy(sampled.reshape(neighbor_ids.shape)).long()
+
+
 def history_evidence(item_seq: torch.Tensor, transition: torch.Tensor, n_items: int, decay: float, window: int) -> torch.Tensor:
     if window > 0:
         item_seq = item_seq[:, -window:]
@@ -83,13 +100,13 @@ def history_evidence(item_seq: torch.Tensor, transition: torch.Tensor, n_items: 
 
 def collect(
     base_model, smooth_model, eval_data, transition: torch.Tensor, neighbor_ids: torch.Tensor,
-    neighbor_weights: torch.Tensor, neighbor_cosines: torch.Tensor, decay: float, window: int,
+    random_neighbor_ids: torch.Tensor, neighbor_weights: torch.Tensor, neighbor_cosines: torch.Tensor, decay: float, window: int,
     max_batches: int | None,
 ) -> dict[str, np.ndarray]:
     device = next(base_model.parameters()).device
     transition = transition.to(device)
-    neighbor_ids, neighbor_weights = neighbor_ids.to(device), neighbor_weights.to(device)
-    output = {key: [] for key in ["items", "base_rank", "smooth_rank", "direct", "borrowed", "neighbor_cosine"]}
+    neighbor_ids, random_neighbor_ids, neighbor_weights = neighbor_ids.to(device), random_neighbor_ids.to(device), neighbor_weights.to(device)
+    output = {key: [] for key in ["items", "base_rank", "smooth_rank", "direct", "borrowed", "random_borrowed", "neighbor_cosine"]}
     with torch.no_grad():
         for batch_idx, batched_data in enumerate(eval_data):
             if max_batches is not None and batch_idx >= max_batches:
@@ -112,11 +129,14 @@ def collect(
             direct = evidence[positive_u, positive_i]
             pos_neighbors = neighbor_ids[positive_i]
             borrowed = (evidence[positive_u.unsqueeze(1), pos_neighbors] * neighbor_weights[positive_i]).sum(dim=1)
+            pos_random_neighbors = random_neighbor_ids[positive_i]
+            random_borrowed = (evidence[positive_u.unsqueeze(1), pos_random_neighbors] * neighbor_weights[positive_i]).sum(dim=1)
             output["items"].extend(positive_i.cpu().tolist())
             output["base_rank"].extend(((base_scores[positive_u] > base_pos.unsqueeze(1)).sum(dim=1) + 1).cpu().tolist())
             output["smooth_rank"].extend(((smooth_scores[positive_u] > smooth_pos.unsqueeze(1)).sum(dim=1) + 1).cpu().tolist())
             output["direct"].extend(direct.cpu().tolist())
             output["borrowed"].extend(borrowed.cpu().tolist())
+            output["random_borrowed"].extend(random_borrowed.cpu().tolist())
             output["neighbor_cosine"].extend(neighbor_cosines[positive_i.cpu()].tolist())
     return {key: np.asarray(value) for key, value in output.items()}
 
@@ -134,10 +154,11 @@ def summarize(indices: np.ndarray, stats: dict[str, np.ndarray], cutoffs: list[i
     row["smooth_median_rank"] = float(np.median(smooth_rank))
     row["rank_win_rate"] = float((smooth_rank < base_rank).mean())
     row["rank_loss_rate"] = float((smooth_rank > base_rank).mean())
-    for field in ["direct", "borrowed", "neighbor_cosine"]:
+    for field in ["direct", "borrowed", "random_borrowed", "neighbor_cosine"]:
         values = stats[field][indices]
         row[f"{field}_mean"] = float(values.mean())
         row[f"{field}_nonzero_pct"] = float((values > 0).mean()) if field != "neighbor_cosine" else math.nan
+    row["angular_minus_random_borrowed_mean"] = row["borrowed_mean"] - row["random_borrowed_mean"]
     return row
 
 
@@ -185,6 +206,7 @@ def main() -> None:
     parser.add_argument("--recent_window", default=5, type=int)
     parser.add_argument("--neighbor_k", default=10, type=int)
     parser.add_argument("--neighbor_chunk_size", default=512, type=int)
+    parser.add_argument("--random_popularity_bins", default=10, type=int)
     parser.add_argument("--cutoffs", default="10,50")
     parser.add_argument("--max_batches", default=None, type=int)
     parser.add_argument("--out_prefix", required=True)
@@ -201,19 +223,28 @@ def main() -> None:
     transition = build_transition_matrix(train_data.dataset, dataset.item_num, item_field, base_model.ITEM_SEQ,
                                          base_model.ITEM_SEQ_LEN, args.transition_mode, args.edge_decay, args.transition_topk)
     neighbor_ids, neighbor_weights, neighbor_cosines = build_neighbors(base_model, dataset.item_num, args.neighbor_k, args.neighbor_chunk_size)
-    stats = collect(base_model, smooth_model, test_data, transition, neighbor_ids, neighbor_weights, neighbor_cosines,
+    random_neighbor_ids = popularity_matched_random_neighbors(neighbor_ids, pop, args.random_popularity_bins, args.seed)
+    stats = collect(base_model, smooth_model, test_data, transition, neighbor_ids, random_neighbor_ids, neighbor_weights, neighbor_cosines,
                     args.seq_decay, args.recent_window, args.max_batches)
     cutoffs = parse_list(args.cutoffs, int)
     rows = []
     for label, indices in target_groups(stats["items"].astype(np.int64), pop).items():
         rows.append(summarize(indices, stats, cutoffs, label))
         if label == "tail":
-            ordered = indices[np.argsort(stats["borrowed"][indices], kind="stable")]
-            for name, part in zip(["tail_borrowed_low", "tail_borrowed_mid", "tail_borrowed_high"], np.array_split(ordered, 3)):
-                rows.append(summarize(part, stats, cutoffs, name))
+            borrowed = stats["borrowed"][indices]
+            zero, nonzero = indices[borrowed <= 0], indices[borrowed > 0]
+            if len(zero):
+                rows.append(summarize(zero, stats, cutoffs, "tail_borrowed_zero"))
+            if len(nonzero):
+                rows.append(summarize(nonzero, stats, cutoffs, "tail_borrowed_nonzero"))
+                ordered = nonzero[np.argsort(stats["borrowed"][nonzero], kind="stable")]
+                for name, part in zip(["tail_borrowed_nonzero_low", "tail_borrowed_nonzero_high"], np.array_split(ordered, 2)):
+                    if len(part):
+                        rows.append(summarize(part, stats, cutoffs, name))
     meta = {"dataset": args.dataset, "hidden": args.hidden_size, "temperature": args.temperature,
             "neighbor_k": args.neighbor_k, "transition_mode": args.transition_mode,
-            "recent_window": args.recent_window, "base_checkpoint": args.cands_checkpoint,
+            "recent_window": args.recent_window, "random_popularity_bins": args.random_popularity_bins,
+            "base_checkpoint": args.cands_checkpoint,
             "smooth_checkpoint": args.smooth_checkpoint}
     rows = [{**meta, **row} for row in rows]
     write_outputs(Path(args.out_prefix), rows)

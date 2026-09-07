@@ -25,6 +25,7 @@ LEARNING_RATE="${LEARNING_RATE:-0.001}"
 NEIGHBOR_K="${NEIGHBOR_K:-10}"
 RECENT_WINDOW="${RECENT_WINDOW:-5}"
 MAX_BATCHES="${MAX_BATCHES:-}"
+FORCE="${FORCE:-False}"
 
 mkdir -p "$OUT_DIR" "$LOG_DIR"
 cd "$ROOT"
@@ -52,7 +53,7 @@ tail -n +2 "$TASK_FILE" | while IFS=$'\t' read -r dataset hidden max_len temp ca
     echo "MISSING $tag base=$base_checkpoint smooth=$smooth_checkpoint" | tee -a "$LOG_DIR/master.log"
     continue
   fi
-  if [ -s "${out_prefix}.csv" ]; then
+  if [ -s "${out_prefix}.csv" ] && [ "$FORCE" != "True" ]; then
     echo "SKIP $tag (already exists)" | tee -a "$LOG_DIR/master.log"
     continue
   fi
