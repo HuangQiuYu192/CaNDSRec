@@ -108,6 +108,7 @@ def read_main_logs(log_dirs: list[Path]) -> list[dict]:
                 "hidden": int(info["hidden"]),
                 "max_len": int(info["max_len"]),
                 "temp": "" if info["temp"] is None else info["temp"],
+                "run_name": log_path.stem,
                 "source": str(log_dir),
             }
             for metric in METRICS:
@@ -145,6 +146,7 @@ def read_angular_smooth_logs(log_dirs: list[Path]) -> list[dict]:
                 "smooth_temp": info["smooth_temp"],
                 "quantile": info["quantile"],
                 "threshold": info["threshold"],
+                "run_name": log_path.stem,
                 "source": str(log_dir),
             }
             for metric in METRICS:
@@ -240,6 +242,7 @@ def main() -> None:
         "recall@5", "recall@10", "recall@20", "ndcg@5", "ndcg@10", "ndcg@20",
         "rel_recall@10_vs_best_sasrec", "rel_ndcg@10_vs_best_sasrec",
         "rel_recall@10_vs_prev", "rel_ndcg@10_vs_prev", "source",
+        "run_name",
     ]
     out_dir = Path(args.out_dir)
     write_csv(out_dir / "best_tuned_table.csv", best_rows, headers)
