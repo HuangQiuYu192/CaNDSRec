@@ -6,7 +6,18 @@ import re
 from pathlib import Path
 
 
-METRICS = ["recall@5", "recall@10", "recall@20", "ndcg@5", "ndcg@10", "ndcg@20"]
+METRICS = [
+    "recall@5",
+    "recall@10",
+    "recall@20",
+    "recall@50",
+    "recall@100",
+    "ndcg@5",
+    "ndcg@10",
+    "ndcg@20",
+    "ndcg@50",
+    "ndcg@100",
+]
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 METRIC_RE = re.compile(r"((?:recall|ndcg)@\d+)\s*[:=]\s*([0-9]*\.?[0-9]+(?:e[-+]?\d+)?)", re.I)
 NAME_RE = re.compile(

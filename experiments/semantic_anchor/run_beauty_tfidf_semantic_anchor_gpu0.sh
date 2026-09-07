@@ -29,6 +29,7 @@ N_HEADS="${N_HEADS:-2}"
 HIDDEN_DROPOUT_PROB="${HIDDEN_DROPOUT_PROB:-0.5}"
 ATTN_DROPOUT_PROB="${ATTN_DROPOUT_PROB:-0.5}"
 LEARNING_RATE="${LEARNING_RATE:-0.001}"
+TOPK_STR="${TOPK_STR:-5 10 20 50 100}"
 
 FUSION_MODES_STR="${FUSION_MODES_STR:-score anchor}"
 GATES_STR="${GATES_STR:-constant tail}"
@@ -126,6 +127,7 @@ run_task() {
     --max_item_list_length "$MAX_LEN" \
     --temperature "$TEMPERATURE" \
     --checkpoint_dir "$ckpt_path" \
+    --topk $TOPK_STR \
     --verbose True \
     --show_progress True \
     "${extra_args[@]}" \

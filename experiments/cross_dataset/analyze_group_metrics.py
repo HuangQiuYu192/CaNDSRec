@@ -76,7 +76,7 @@ def build_cli_for_model(model_name: str, args: argparse.Namespace) -> list[str]:
         "--show_progress",
         "False",
     ]
-    if model_name in {"SASRec", "CANDSSASRec", "AngularSmoothCANDSSASRec"}:
+    if model_name in {"SASRec", "CANDSSASRec", "AngularSmoothCANDSSASRec", "SemanticCANDSSASRec"}:
         cli.extend(["--n_heads", str(args.n_heads), "--attn_dropout_prob", str(args.attn_dropout_prob)])
     if model_name in {"WEARec", "CANDSWEARec"}:
         cli.extend(["--num_heads", str(args.wearec_num_heads), "--alpha", str(args.wearec_alpha)])
@@ -95,6 +95,21 @@ def build_cli_for_model(model_name: str, args: argparse.Namespace) -> list[str]:
                 str(args.angular_smooth_sim_threshold),
                 "--angular_smooth_pop_weight",
                 str(args.angular_smooth_pop_weight),
+            ]
+        )
+    if model_name == "SemanticCANDSSASRec":
+        cli.extend(
+            [
+                "--semantic_embedding_path",
+                str(args.semantic_embedding_path),
+                "--semantic_fusion_mode",
+                str(args.semantic_fusion_mode),
+                "--semantic_weight",
+                str(args.semantic_weight),
+                "--semantic_gate",
+                str(args.semantic_gate),
+                "--semantic_freeze",
+                str(args.semantic_freeze),
             ]
         )
     return cli
@@ -220,6 +235,11 @@ def main() -> None:
     parser.add_argument("--angular_smooth_pop_quantile", default=0.67, type=float)
     parser.add_argument("--angular_smooth_sim_threshold", default=0.0, type=float)
     parser.add_argument("--angular_smooth_pop_weight", default=True)
+    parser.add_argument("--semantic_embedding_path", default="")
+    parser.add_argument("--semantic_fusion_mode", default="score")
+    parser.add_argument("--semantic_weight", default=0.1, type=float)
+    parser.add_argument("--semantic_gate", default="constant")
+    parser.add_argument("--semantic_freeze", default=True)
     parser.add_argument("--cutoffs", default="5,10,20,50,100")
     parser.add_argument("--max_batches", default=None, type=int)
     parser.add_argument("--out_prefix", required=True)
@@ -243,6 +263,11 @@ def main() -> None:
         "angular_smooth_temperature": args.angular_smooth_temperature,
         "angular_smooth_pop_quantile": args.angular_smooth_pop_quantile,
         "angular_smooth_sim_threshold": args.angular_smooth_sim_threshold,
+        "semantic_embedding_path": args.semantic_embedding_path,
+        "semantic_fusion_mode": args.semantic_fusion_mode,
+        "semantic_weight": args.semantic_weight,
+        "semantic_gate": args.semantic_gate,
+        "semantic_freeze": args.semantic_freeze,
     }
     rows = [{**meta, **row} for row in rows]
 
