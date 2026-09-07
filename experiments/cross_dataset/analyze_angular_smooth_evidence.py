@@ -10,6 +10,7 @@ angular neighbors.  Tail targets are then stratified by borrowed evidence.
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import math
 import sys
@@ -161,7 +162,8 @@ def main() -> None:
     parser.add_argument("--seed", default=2025, type=int)
     parser.add_argument("--hidden_size", required=True, type=int)
     parser.add_argument("--max_item_list_length", required=True, type=int)
-    parser.add_argument("--inner_size", required=True, type=int)
+    parser.add_argument("--cands_inner_size", required=True, type=int)
+    parser.add_argument("--smooth_inner_size", required=True, type=int)
     parser.add_argument("--temperature", required=True, type=float)
     parser.add_argument("--n_layers", default=2, type=int)
     parser.add_argument("--n_heads", default=2, type=int)
@@ -188,8 +190,12 @@ def main() -> None:
     parser.add_argument("--out_prefix", required=True)
     args = parser.parse_args()
 
-    config, dataset, train_data, _, test_data, base_model = build_model("CANDSSASRec", args.cands_checkpoint, args)
-    _, _, _, _, _, smooth_model = build_model("AngularSmoothCANDSSASRec", args.smooth_checkpoint, args)
+    base_args = copy.copy(args)
+    base_args.inner_size = args.cands_inner_size
+    smooth_args = copy.copy(args)
+    smooth_args.inner_size = args.smooth_inner_size
+    config, dataset, train_data, _, test_data, base_model = build_model("CANDSSASRec", args.cands_checkpoint, base_args)
+    _, _, _, _, _, smooth_model = build_model("AngularSmoothCANDSSASRec", args.smooth_checkpoint, smooth_args)
     item_field = config["ITEM_ID_FIELD"]
     pop = np.bincount(train_data.dataset.inter_feat[item_field].cpu().numpy(), minlength=dataset.item_num)
     transition = build_transition_matrix(train_data.dataset, dataset.item_num, item_field, base_model.ITEM_SEQ,

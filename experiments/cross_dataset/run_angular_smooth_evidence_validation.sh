@@ -45,7 +45,7 @@ conda run --no-capture-output -n "$CONDA_ENV" python experiments/cross_dataset/p
   --out_tsv "$TASK_FILE" \
   | tee "$LOG_DIR/prepare_tasks.log"
 
-tail -n +2 "$TASK_FILE" | while IFS=$'\t' read -r dataset hidden max_len temp inner_size weight smooth_k smooth_temp quantile threshold base_run smooth_run base_checkpoint smooth_checkpoint; do
+tail -n +2 "$TASK_FILE" | while IFS=$'\t' read -r dataset hidden max_len temp cands_inner_size smooth_inner_size weight smooth_k smooth_temp quantile threshold base_run smooth_run base_checkpoint smooth_checkpoint; do
   tag="${dataset}_h${hidden}_len${max_len}_temp${temp}"
   out_prefix="$OUT_DIR/$tag"
   if [ -z "$base_checkpoint" ] || [ -z "$smooth_checkpoint" ]; then
@@ -66,7 +66,8 @@ tail -n +2 "$TASK_FILE" | while IFS=$'\t' read -r dataset hidden max_len temp in
     --cands_checkpoint "$base_checkpoint" \
     --smooth_checkpoint "$smooth_checkpoint" \
     --gpu_id "$GPU_ID" --seed "$SEED" \
-    --hidden_size "$hidden" --max_item_list_length "$max_len" --inner_size "$inner_size" --temperature "$temp" \
+    --hidden_size "$hidden" --max_item_list_length "$max_len" \
+    --cands_inner_size "$cands_inner_size" --smooth_inner_size "$smooth_inner_size" --temperature "$temp" \
     --n_layers "$N_LAYERS" --n_heads "$N_HEADS" \
     --hidden_dropout_prob "$HIDDEN_DROPOUT_PROB" --attn_dropout_prob "$ATTN_DROPOUT_PROB" \
     --learning_rate "$LEARNING_RATE" --train_batch_size "$TRAIN_BATCH_SIZE" --eval_batch_size "$EVAL_BATCH_SIZE" \

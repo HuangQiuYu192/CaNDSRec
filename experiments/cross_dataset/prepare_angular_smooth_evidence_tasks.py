@@ -29,6 +29,13 @@ def checkpoint(row: dict, search_root: Path) -> str:
     return latest_checkpoint(ckpt_root_from_log_source(row["source"]), row["run_name"]) or latest_checkpoint(search_root, row["run_name"])
 
 
+def infer_inner_size(row: dict) -> int:
+    """Recover the only non-default architecture variant used in these runs."""
+    if "fixed_inner256" in row.get("source", ""):
+        return 256
+    return int(float(row["hidden"])) * 4
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--candidates_csv", default="analysis_results/best_tuned_table/all_candidates.csv")
@@ -46,24 +53,27 @@ def main() -> None:
             print(f"SKIP {dataset}: no AngularSmooth result")
             continue
         smooth = max(smooth_runs, key=lambda row: (float(row["ndcg@10"]), float(row["recall@10"])))
+        smooth_inner_size = infer_inner_size(smooth)
         matched_base = [
             row for row in candidates
             if row["dataset"] == dataset and row["method"] == "CaNDS"
             and row["hidden"] == smooth["hidden"] and row["max_len"] == smooth["max_len"] and row["temp"] == smooth["temp"]
+            and infer_inner_size(row) == smooth_inner_size
         ]
         if not matched_base:
-            print(f"SKIP {dataset}: no CaNDS run matching h={smooth['hidden']}, len={smooth['max_len']}, temp={smooth['temp']}")
+            print(f"SKIP {dataset}: no CaNDS run matching h={smooth['hidden']}, len={smooth['max_len']}, temp={smooth['temp']}, inner={smooth_inner_size}")
             continue
         base = max(matched_base, key=lambda row: (float(row["ndcg@10"]), float(row["recall@10"])))
         rows.append({
             "dataset": dataset, "hidden": smooth["hidden"], "max_len": smooth["max_len"], "temp": smooth["temp"],
-            "inner_size": int(float(smooth["hidden"])) * 4, "weight": smooth["weight"], "k": smooth["k"],
+            "cands_inner_size": infer_inner_size(base), "smooth_inner_size": smooth_inner_size,
+            "weight": smooth["weight"], "k": smooth["k"],
             "smooth_temp": smooth["smooth_temp"], "quantile": smooth["quantile"], "threshold": smooth["threshold"],
             "base_run": base["run_name"], "smooth_run": smooth["run_name"],
             "base_checkpoint": checkpoint(base, Path(args.ckpt_root)),
             "smooth_checkpoint": checkpoint(smooth, Path(args.ckpt_root)),
         })
-    headers = ["dataset", "hidden", "max_len", "temp", "inner_size", "weight", "k", "smooth_temp", "quantile", "threshold", "base_run", "smooth_run", "base_checkpoint", "smooth_checkpoint"]
+    headers = ["dataset", "hidden", "max_len", "temp", "cands_inner_size", "smooth_inner_size", "weight", "k", "smooth_temp", "quantile", "threshold", "base_run", "smooth_run", "base_checkpoint", "smooth_checkpoint"]
     out = Path(args.out_tsv)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="", encoding="utf-8") as f:
