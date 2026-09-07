@@ -188,17 +188,18 @@ def history_transition_scores(
     seq_decay: float,
     recent_window: int,
 ) -> torch.Tensor:
-    if recent_window > 0:
-        item_seq = item_seq[:, -recent_window:]
     batch_size, seq_len = item_seq.size()
     pos = torch.arange(seq_len, device=item_seq.device).view(1, -1)
     valid_len = (item_seq > 0).sum(dim=1, keepdim=True)
+    # RecBole stores histories in [:valid_len] and pads on the right.
+    start = (valid_len - recent_window).clamp_min(0) if recent_window > 0 else torch.zeros_like(valid_len)
+    recent_mask = (item_seq > 0) & (pos >= start) & (pos < valid_len)
     distance = valid_len - 1 - pos
     weights = torch.pow(
         torch.tensor(seq_decay, device=item_seq.device, dtype=torch.float32),
         torch.clamp(distance, min=0).float(),
     )
-    weights = weights * (item_seq > 0).float()
+    weights = weights * recent_mask.float()
     history = torch.zeros(batch_size, n_items, device=item_seq.device)
     history.scatter_add_(1, item_seq, weights)
     history[:, 0] = 0.0

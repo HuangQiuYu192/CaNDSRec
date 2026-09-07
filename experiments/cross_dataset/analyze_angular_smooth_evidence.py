@@ -83,14 +83,16 @@ def popularity_matched_random_neighbors(neighbor_ids: torch.Tensor, pop: np.ndar
 
 
 def history_evidence(item_seq: torch.Tensor, transition: torch.Tensor, n_items: int, decay: float, window: int) -> torch.Tensor:
-    if window > 0:
-        item_seq = item_seq[:, -window:]
     batch, length = item_seq.shape
     positions = torch.arange(length, device=item_seq.device).view(1, -1)
     valid_len = (item_seq > 0).sum(dim=1, keepdim=True)
+    # RecBole right-pads sequential histories. Select the final ``window``
+    # valid positions rather than the final tensor columns (mostly padding).
+    start = (valid_len - window).clamp_min(0) if window > 0 else torch.zeros_like(valid_len)
+    recent_mask = (item_seq > 0) & (positions >= start) & (positions < valid_len)
     distance = valid_len - 1 - positions
     weights = torch.pow(torch.tensor(decay, device=item_seq.device), distance.clamp_min(0).float())
-    weights = weights * (item_seq > 0).float()
+    weights = weights * recent_mask.float()
     history = torch.zeros(batch, n_items, device=item_seq.device)
     history.scatter_add_(1, item_seq, weights)
     history[:, 0] = 0.0

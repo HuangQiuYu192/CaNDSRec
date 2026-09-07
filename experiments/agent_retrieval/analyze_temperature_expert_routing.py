@@ -51,18 +51,22 @@ def tail_groups(items: np.ndarray, popularity: np.ndarray) -> dict[str, np.ndarr
     return dict(zip(["head", "mid", "tail"], np.array_split(order, 3)))
 
 
-def coherence_values(item_seq: torch.Tensor, item_dir: torch.Tensor, recent_window: int) -> tuple[torch.Tensor, torch.Tensor]:
+def coherence_values(
+    item_seq: torch.Tensor, item_seq_len: torch.Tensor, item_dir: torch.Tensor, recent_window: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Recent pairwise angular consistency and available history length.
 
     A length-one history has no pairwise consistency.  It must be a separate
     state, not assigned an artificial coherence of one and mixed with stable
     multi-item histories.
     """
-    if recent_window > 0:
-        item_seq = item_seq[:, -recent_window:]
     emb = item_dir[item_seq]
-    valid = (item_seq > 0).unsqueeze(-1)
-    mask = valid.squeeze(-1)
+    positions = torch.arange(item_seq.size(1), device=item_seq.device).unsqueeze(0)
+    lengths = item_seq_len.long().clamp(min=0, max=item_seq.size(1)).unsqueeze(1)
+    start = (lengths - recent_window).clamp_min(0) if recent_window > 0 else torch.zeros_like(lengths)
+    # RecBole sequential tensors are right-padded: valid history occupies
+    # [:sequence_length], so the recent window is [length-window:length].
+    mask = (item_seq > 0) & (positions >= start) & (positions < lengths)
     count = mask.sum(dim=1)
     pair_mask = (mask.unsqueeze(1) & mask.unsqueeze(2)) & ~torch.eye(
         item_seq.size(1), device=item_seq.device, dtype=torch.bool
@@ -89,7 +93,9 @@ def collect(models: dict[float, object], data, reference_temp: float, recent_win
             positive_u = torch.as_tensor(batched_data[2], device=device).long()
             positive_i = torch.as_tensor(batched_data[3], device=device).long()
             output["items"].extend(positive_i.cpu().tolist())
-            coherence, history_length = coherence_values(interaction[reference.ITEM_SEQ], item_dir, recent_window)
+            coherence, history_length = coherence_values(
+                interaction[reference.ITEM_SEQ], interaction[reference.ITEM_SEQ_LEN], item_dir, recent_window
+            )
             output["coherence"].extend(coherence.cpu().tolist())
             output["recent_history_length"].extend(history_length.cpu().tolist())
             for temperature, model in models.items():
