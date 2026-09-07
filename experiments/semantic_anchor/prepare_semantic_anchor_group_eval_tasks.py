@@ -32,9 +32,33 @@ def run_name(row: dict) -> str:
     return f"{dataset}_{model}_h{hidden}_len{max_len}_temp{temp}_{source}_mode{mode}_gate{gate}_w{weight}"
 
 
+def newest_checkpoint(checkpoints: list[Path]) -> str:
+    """Return the most recently written checkpoint, if any."""
+    return str(max(checkpoints, key=lambda path: path.stat().st_mtime)) if checkpoints else ""
+
+
 def latest_checkpoint(ckpt_dir: Path, name: str) -> str:
-    checkpoints = sorted((ckpt_dir / name).glob("*.pth"))
-    return str(checkpoints[-1]) if checkpoints else ""
+    """Look in the expected run directory, then in retained checkpoint trees.
+
+    Jupyter runs are sometimes restored under a different checkpoint root after
+    a fresh clone.  The exact run name is still stable, so a recursive fallback
+    avoids coupling group evaluation to one machine-specific directory layout.
+    """
+    if not ckpt_dir.exists():
+        return ""
+    direct = list((ckpt_dir / name).glob("*.pth"))
+    if direct:
+        return newest_checkpoint(direct)
+    return newest_checkpoint(list(ckpt_dir.rglob(f"{name}/*.pth")))
+
+
+def discover_checkpoint(roots: list[Path], name: str) -> str:
+    """Search each retained checkpoint root, preferring the configured one."""
+    for root in roots:
+        checkpoint = latest_checkpoint(root, name)
+        if checkpoint:
+            return checkpoint
+    return ""
 
 
 def checkpoint_from_log(log_dir: Path, name: str) -> str:
@@ -44,10 +68,14 @@ def checkpoint_from_log(log_dir: Path, name: str) -> str:
     text = log_path.read_text(encoding="utf-8", errors="ignore")
     matches = re.findall(r"Loading model structure and parameters from\s+(.+?\.pth)", text)
     if matches:
-        return matches[-1].strip().rstrip("\r")
+        checkpoint = Path(matches[-1].strip().rstrip("\r").strip("'\""))
+        if checkpoint.exists():
+            return str(checkpoint)
     matches = re.findall(r"Saving current best:\s+(.+?\.pth)", text)
     if matches:
-        return matches[-1].strip().rstrip("\r")
+        checkpoint = Path(matches[-1].strip().rstrip("\r").strip("'\""))
+        if checkpoint.exists():
+            return str(checkpoint)
     return ""
 
 
@@ -55,6 +83,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--summary_csv", default="log_runs/beauty_tfidf_semantic_anchor_gpu0/semantic_anchor_summary.csv")
     parser.add_argument("--ckpt_dir", default="ckpt/beauty_tfidf_semantic_anchor_gpu0")
+    parser.add_argument(
+        "--search_roots",
+        nargs="*",
+        default=[],
+        help="Additional checkpoint roots to search when --ckpt_dir was relocated.",
+    )
     parser.add_argument("--log_dir", default=None)
     parser.add_argument("--semantic_embedding_path", default="dataset/Beauty/Beauty.tfidf_svd128.npy")
     parser.add_argument("--top_n", default=5, type=int)
@@ -75,7 +109,9 @@ def main():
         name = run_name(row)
         checkpoint = checkpoint_from_log(Path(args.log_dir), name) if args.log_dir else ""
         if not checkpoint:
-            checkpoint = latest_checkpoint(Path(args.ckpt_dir), name)
+            checkpoint = discover_checkpoint(
+                [Path(args.ckpt_dir), *(Path(root) for root in args.search_roots)], name
+            )
         tasks.append(
             {
                 "run_name": name,
