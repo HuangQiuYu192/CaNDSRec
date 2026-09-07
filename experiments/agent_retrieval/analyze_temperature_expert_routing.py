@@ -3,8 +3,8 @@
 
 Changing the positive score multiplier T at inference cannot change a ranking.
 This experiment therefore treats checkpoints trained at different temperatures
-as different experts.  It learns a three-way route (low/mid/high sequence
-coherence) on validation data only, then evaluates that frozen route on test.
+as different experts.  It learns a validation-only route for short histories
+and low/mid/high multi-item sequence coherence, then evaluates it on test.
 """
 
 from __future__ import annotations
@@ -51,24 +51,33 @@ def tail_groups(items: np.ndarray, popularity: np.ndarray) -> dict[str, np.ndarr
     return dict(zip(["head", "mid", "tail"], np.array_split(order, 3)))
 
 
-def coherence_values(item_seq: torch.Tensor, item_dir: torch.Tensor, recent_window: int) -> torch.Tensor:
-    """Mean alignment with the recent-history direction; [0,1] in practice."""
+def coherence_values(item_seq: torch.Tensor, item_dir: torch.Tensor, recent_window: int) -> tuple[torch.Tensor, torch.Tensor]:
+    """Recent pairwise angular consistency and available history length.
+
+    A length-one history has no pairwise consistency.  It must be a separate
+    state, not assigned an artificial coherence of one and mixed with stable
+    multi-item histories.
+    """
     if recent_window > 0:
         item_seq = item_seq[:, -recent_window:]
     emb = item_dir[item_seq]
     valid = (item_seq > 0).unsqueeze(-1)
-    summed = (emb * valid).sum(dim=1)
-    direction = F.normalize(summed, dim=-1)
-    alignment = (emb * direction.unsqueeze(1)).sum(dim=-1)
-    count = valid.squeeze(-1).sum(dim=1).clamp_min(1)
-    return (alignment * valid.squeeze(-1)).sum(dim=1) / count
+    mask = valid.squeeze(-1)
+    count = mask.sum(dim=1)
+    pair_mask = (mask.unsqueeze(1) & mask.unsqueeze(2)) & ~torch.eye(
+        item_seq.size(1), device=item_seq.device, dtype=torch.bool
+    ).unsqueeze(0)
+    pairwise = torch.matmul(emb, emb.transpose(1, 2))
+    coherence = (pairwise * pair_mask).sum(dim=(1, 2)) / (count * (count - 1)).clamp_min(1)
+    coherence = torch.where(count >= 2, coherence, torch.full_like(coherence, float("nan")))
+    return coherence, count
 
 
 def collect(models: dict[float, object], data, reference_temp: float, recent_window: int, max_batches: int | None):
     reference = models[reference_temp]
     device = next(reference.parameters()).device
     item_dir = reference._normalized_item_embedding().detach()
-    output = {"items": [], "coherence": []}
+    output = {"items": [], "coherence": [], "recent_history_length": []}
     for temperature in models:
         output[f"rank_t{temperature:g}"] = []
     with torch.no_grad():
@@ -80,7 +89,9 @@ def collect(models: dict[float, object], data, reference_temp: float, recent_win
             positive_u = torch.as_tensor(batched_data[2], device=device).long()
             positive_i = torch.as_tensor(batched_data[3], device=device).long()
             output["items"].extend(positive_i.cpu().tolist())
-            output["coherence"].extend(coherence_values(interaction[reference.ITEM_SEQ], item_dir, recent_window).cpu().tolist())
+            coherence, history_length = coherence_values(interaction[reference.ITEM_SEQ], item_dir, recent_window)
+            output["coherence"].extend(coherence.cpu().tolist())
+            output["recent_history_length"].extend(history_length.cpu().tolist())
             for temperature, model in models.items():
                 scores = model.full_sort_predict(interaction)
                 if scores.dim() == 1:
@@ -94,15 +105,22 @@ def collect(models: dict[float, object], data, reference_temp: float, recent_win
     return {key: np.asarray(value) for key, value in output.items()}
 
 
-def assign_coherence_groups(values: np.ndarray, thresholds: tuple[float, float]) -> np.ndarray:
+def assign_coherence_groups(values: np.ndarray, history_length: np.ndarray, thresholds: tuple[float, float]) -> np.ndarray:
     low, high = thresholds
-    return np.where(values <= low, "low", np.where(values <= high, "mid", "high"))
+    groups = np.full(len(values), "short", dtype="U5")
+    multi = history_length >= 2
+    groups[multi & (values <= low)] = "low"
+    groups[multi & (values > low) & (values <= high)] = "mid"
+    groups[multi & (values > high)] = "high"
+    return groups
 
 
 def best_expert_by_group(valid: dict, temperatures: list[float], groups: np.ndarray, select_k: int) -> tuple[dict[str, float], float]:
     mapping = {}
-    for group in ["low", "mid", "high"]:
+    for group in ["short", "low", "mid", "high"]:
         idx = np.flatnonzero(groups == group)
+        if not len(idx):
+            raise ValueError(f"State group {group!r} is empty; coherence feature cannot support a four-state router.")
         candidates = []
         for temperature in temperatures:
             _, ndcg = metric(valid[f"rank_t{temperature:g}"][idx], select_k)
@@ -121,7 +139,7 @@ def routed_ranks(stats: dict, route: dict[str, float], coherence_group: np.ndarr
 
 def rows_for_split(stats: dict, split: str, temperatures: list[float], coherence_group: np.ndarray, route: dict[str, float], always_temp: float, reference_temp: float, popularity: np.ndarray, cutoffs: list[int]) -> list[dict]:
     partitions = {"all": np.arange(len(stats["items"]))}
-    partitions.update({f"coherence_{group}": np.flatnonzero(coherence_group == group) for group in ["low", "mid", "high"]})
+    partitions.update({f"state_{group}": np.flatnonzero(coherence_group == group) for group in ["short", "low", "mid", "high"]})
     for group, idx in tail_groups(stats["items"], popularity).items():
         partitions[group] = idx
     rank_sets = {f"expert_t{temperature:g}": stats[f"rank_t{temperature:g}"] for temperature in temperatures}
@@ -193,17 +211,20 @@ def main() -> None:
         if train_data is None:
             config, dataset, train_data, valid_data, test_data = expert_config, expert_dataset, expert_train, expert_valid, expert_test
     valid = collect(models, valid_data, args.reference_temperature, args.recent_window, args.max_batches)
-    thresholds = tuple(np.quantile(valid["coherence"], [1 / 3, 2 / 3]).tolist())
-    valid_groups = assign_coherence_groups(valid["coherence"], thresholds)
+    valid_multi = valid["coherence"][valid["recent_history_length"] >= 2]
+    if len(valid_multi) < 30 or len(np.unique(valid_multi)) < 3:
+        raise ValueError("Recent pairwise coherence has insufficient variation for a routing experiment.")
+    thresholds = tuple(np.quantile(valid_multi, [1 / 3, 2 / 3]).tolist())
+    valid_groups = assign_coherence_groups(valid["coherence"], valid["recent_history_length"], thresholds)
     route, always_temp = best_expert_by_group(valid, temperatures, valid_groups, args.select_k)
     test = collect(models, test_data, args.reference_temperature, args.recent_window, args.max_batches)
-    test_groups = assign_coherence_groups(test["coherence"], thresholds)
+    test_groups = assign_coherence_groups(test["coherence"], test["recent_history_length"], thresholds)
     item_field = config["ITEM_ID_FIELD"]
     popularity = np.bincount(train_data.dataset.inter_feat[item_field].cpu().numpy(), minlength=dataset.item_num)
     cutoffs = [int(value) for value in args.cutoffs.split(",") if value.strip()]
     rows = rows_for_split(valid, "valid", temperatures, valid_groups, route, always_temp, args.reference_temperature, popularity, cutoffs)
     rows += rows_for_split(test, "test", temperatures, test_groups, route, always_temp, args.reference_temperature, popularity, cutoffs)
-    metadata = {"dataset": args.dataset, "checkpoints": checkpoints, "reference_temperature": args.reference_temperature, "recent_window": args.recent_window, "coherence_thresholds_from_valid": thresholds, "validation_selected_route": route, "always_best_validation_temperature": always_temp, "select_metric": f"NDCG@{args.select_k}", "max_batches": args.max_batches}
+    metadata = {"dataset": args.dataset, "checkpoints": checkpoints, "reference_temperature": args.reference_temperature, "recent_window": args.recent_window, "coherence_thresholds_from_valid": thresholds, "validation_state_counts": {state: int((valid_groups == state).sum()) for state in ["short", "low", "mid", "high"]}, "test_state_counts": {state: int((test_groups == state).sum()) for state in ["short", "low", "mid", "high"]}, "validation_selected_route": route, "always_best_validation_temperature": always_temp, "select_metric": f"NDCG@{args.select_k}", "max_batches": args.max_batches}
     write_outputs(Path(args.out_prefix), rows, metadata, cutoffs)
     print(json.dumps(metadata, ensure_ascii=False, indent=2))
     print(f"wrote {args.out_prefix}_summary.csv, .md and _meta.json")
