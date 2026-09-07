@@ -19,11 +19,16 @@ def run_name(row: dict) -> str:
     temp = fmt_float(row["temp"])
     if model == "CANDSSASRec":
         return f"{dataset}_{model}_h{hidden}_len{max_len}_temp{temp}"
-    svd_dim = str(int(float(row["svd_dim"])))
+    if row.get("text_model"):
+        text_dim = str(int(float(row["text_dim"])))
+        source = f"text{row['text_model']}_dim{text_dim}"
+    else:
+        svd_dim = str(int(float(row["svd_dim"])))
+        source = f"svd{svd_dim}"
     mode = row["mode"]
     gate = row["gate"]
     weight = fmt_float(row["weight"])
-    return f"{dataset}_{model}_h{hidden}_len{max_len}_temp{temp}_svd{svd_dim}_mode{mode}_gate{gate}_w{weight}"
+    return f"{dataset}_{model}_h{hidden}_len{max_len}_temp{temp}_{source}_mode{mode}_gate{gate}_w{weight}"
 
 
 def latest_checkpoint(ckpt_dir: Path, name: str) -> str:
@@ -64,6 +69,8 @@ def main():
                 "inner_size": str(int(float(row["hidden"])) * 4),
                 "temp": fmt_float(row["temp"]),
                 "svd_dim": str(int(float(row["svd_dim"]))) if row.get("svd_dim") else "",
+                "text_model": row.get("text_model", ""),
+                "text_dim": str(int(float(row["text_dim"]))) if row.get("text_dim") else "",
                 "mode": row.get("mode", ""),
                 "gate": row.get("gate", ""),
                 "weight": fmt_float(row["weight"]) if row.get("weight") else "0",
@@ -82,6 +89,8 @@ def main():
         "inner_size",
         "temp",
         "svd_dim",
+        "text_model",
+        "text_dim",
         "mode",
         "gate",
         "weight",

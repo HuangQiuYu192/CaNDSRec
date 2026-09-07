@@ -23,7 +23,8 @@ METRIC_RE = re.compile(r"((?:recall|ndcg)@\d+)\s*[:=]\s*([0-9]*\.?[0-9]+(?:e[-+]
 NAME_RE = re.compile(
     r"^(?P<dataset>.+)_(?P<model>CANDSSASRec|SemanticCANDSSASRec)"
     r"_h(?P<hidden>\d+)_len(?P<max_len>\d+)_temp(?P<temp>[^_]+)"
-    r"(?:_svd(?P<svd_dim>\d+)_mode(?P<mode>[^_]+)_gate(?P<gate>[^_]+)_w(?P<weight>[^_]+))?$"
+    r"(?:(?:_svd(?P<svd_dim>\d+))|(?:_text(?P<text_model>[^_]+)_dim(?P<text_dim>\d+)))?"
+    r"(?:_mode(?P<mode>[^_]+)_gate(?P<gate>[^_]+)_w(?P<weight>[^_]+))?$"
 )
 
 
@@ -51,10 +52,17 @@ def parse_name(path: Path):
     row["hidden"] = int(row["hidden"])
     row["max_len"] = int(row["max_len"])
     row["svd_dim"] = "" if row["svd_dim"] is None else int(row["svd_dim"])
+    row["text_model"] = row["text_model"] or ""
+    row["text_dim"] = "" if row["text_dim"] is None else int(row["text_dim"])
     row["mode"] = row["mode"] or ""
     row["gate"] = row["gate"] or ""
     row["weight"] = "" if row["weight"] is None else float(row["weight"])
-    row["method"] = "CaNDS" if row["model"] == "CANDSSASRec" else "CaNDS-TFIDF"
+    if row["model"] == "CANDSSASRec":
+        row["method"] = "CaNDS"
+    elif row["text_model"]:
+        row["method"] = "CaNDS-Text"
+    else:
+        row["method"] = "CaNDS-TFIDF"
     return row
 
 
@@ -128,6 +136,8 @@ def main():
         "max_len",
         "temp",
         "svd_dim",
+        "text_model",
+        "text_dim",
         "mode",
         "gate",
         "weight",

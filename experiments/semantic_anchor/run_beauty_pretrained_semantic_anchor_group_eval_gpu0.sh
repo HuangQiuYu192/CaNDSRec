@@ -1,24 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Head/mid/tail group evaluation for the first-layer TF-IDF semantic anchor test.
-# Evaluates CaNDS baseline plus the top-N SemanticCANDSSASRec variants selected
-# from semantic_anchor_summary.csv. Metrics are computed at @5/10/20/50/100.
+# Head/mid/tail group evaluation for pretrained semantic anchor experiments.
 
 ROOT="${ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 CONDA_SH="${CONDA_SH:-/home/ssh_user/miniconda3/etc/profile.d/conda.sh}"
 CONDA_ENV="${CONDA_ENV:-recbole}"
 GPU_ID="${GPU_ID:-0}"
 
-TAG="${TAG:-beauty_tfidf_semantic_anchor_gpu0}"
+TAG="${TAG:-beauty_pretrained_semantic_anchor_gpu0}"
+TEXT_MODEL_TAG="${TEXT_MODEL_TAG:-allminilml6v2}"
 SUMMARY_CSV="${SUMMARY_CSV:-$ROOT/log_runs/$TAG/semantic_anchor_summary.csv}"
 CKPT_DIR="${CKPT_DIR:-$ROOT/ckpt/$TAG}"
-SEMANTIC_EMBEDDING_PATH="${SEMANTIC_EMBEDDING_PATH:-$ROOT/dataset/Beauty/Beauty.tfidf_svd128.npy}"
-OUT_DIR="${OUT_DIR:-$ROOT/analysis_results/beauty_tfidf_semantic_anchor_group_eval}"
-LOG_DIR="${LOG_DIR:-$ROOT/log_runs/beauty_tfidf_semantic_anchor_group_eval}"
+SEMANTIC_EMBEDDING_PATH="${SEMANTIC_EMBEDDING_PATH:-$ROOT/dataset/Beauty/Beauty.${TEXT_MODEL_TAG}.npy}"
+OUT_DIR="${OUT_DIR:-$ROOT/analysis_results/beauty_pretrained_semantic_anchor_group_eval}"
+LOG_DIR="${LOG_DIR:-$ROOT/log_runs/beauty_pretrained_semantic_anchor_group_eval}"
 TASK_FILE="$OUT_DIR/tasks.tsv"
 
-TOP_N="${TOP_N:-5}"
+TOP_N="${TOP_N:-2}"
 RANK_METRIC="${RANK_METRIC:-ndcg@10}"
 CUTOFFS="${CUTOFFS:-5,10,20,50,100}"
 
