@@ -7,6 +7,7 @@ from .CalibratedCANDSSASRec import CalibratedCANDSSASRec
 from .DataAwareTempCANDSSASRec import DataAwareTempCANDSSASRec
 from .LearnableTempCANDSSASRec import LearnableTempCANDSSASRec
 from .LinearItemCANDSSASRec import LinearItemCANDSSASRec
+from .SemanticCANDSSASRec import SemanticCANDSSASRec
 from .TailCLCalibratedCANDSSASRec import TailCLCalibratedCANDSSASRec
 from .SASRec import SASRec
 from .GRU4Rec import GRU4Rec
@@ -33,6 +34,7 @@ MODEL_DICT = {
     "DataAwareTempCANDSSASRec": DataAwareTempCANDSSASRec,
     "LearnableTempCANDSSASRec": LearnableTempCANDSSASRec,
     "LinearItemCANDSSASRec": LinearItemCANDSSASRec,
+    "SemanticCANDSSASRec": SemanticCANDSSASRec,
     "TailCLCalibratedCANDSSASRec": TailCLCalibratedCANDSSASRec,
     "BERT4Rec": BERT4Rec,
     "CL4SRec": CL4SRec,

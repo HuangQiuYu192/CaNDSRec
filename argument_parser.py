@@ -75,10 +75,15 @@ def add_cands_arguments(parser):
     parser.add_argument('--angular_smooth_pop_quantile', default=0.67, type=float)
     parser.add_argument('--angular_smooth_sim_threshold', default=0.0, type=float)
     parser.add_argument('--angular_smooth_pop_weight', default=True, type=str2bool)
+    parser.add_argument('--semantic_embedding_path', default='', type=str)
+    parser.add_argument('--semantic_fusion_mode', default='score', choices=['score', 'anchor'])
+    parser.add_argument('--semantic_weight', default=0.1, type=float)
+    parser.add_argument('--semantic_gate', default='constant', choices=['constant', 'tail', 'sqrt_tail'])
+    parser.add_argument('--semantic_freeze', default=True, type=str2bool)
 
 
 def add_model_arguments(parser, base_model, dataset):
-    if base_model in {'SASRec', 'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'TailCLCalibratedCANDSSASRec'}:
+    if base_model in {'SASRec', 'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'SemanticCANDSSASRec', 'TailCLCalibratedCANDSSASRec'}:
         parser.add_argument('--hidden_size', default=64, type=int)
         parser.add_argument('--n_layers', default=2, type=int)
         parser.add_argument('--n_heads', default=2, type=int)
@@ -89,7 +94,7 @@ def add_model_arguments(parser, base_model, dataset):
         parser.add_argument('--hidden_act', default='gelu', type=str)
         parser.add_argument('--layer_norm_eps', default=1e-12, type=float)
         parser.add_argument('--initializer_range', default=0.02, type=float)
-        if base_model in {'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'TailCLCalibratedCANDSSASRec'}:
+        if base_model in {'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'SemanticCANDSSASRec', 'TailCLCalibratedCANDSSASRec'}:
             add_cands_arguments(parser)
     elif base_model == 'GRU4Rec':
         parser.add_argument('--hidden_size', default=64, type=int)
