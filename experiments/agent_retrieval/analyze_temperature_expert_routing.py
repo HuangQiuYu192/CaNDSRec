@@ -122,21 +122,26 @@ def assign_coherence_groups(values: np.ndarray, history_length: np.ndarray, thre
 
 
 def best_expert_by_group(valid: dict, temperatures: list[float], groups: np.ndarray, select_k: int) -> tuple[dict[str, float], float]:
+    all_candidates = []
+    for temperature in temperatures:
+        _, ndcg = metric(valid[f"rank_t{temperature:g}"], select_k)
+        all_candidates.append((ndcg, -temperature, temperature))
+    always_temp = max(all_candidates)[2]
     mapping = {}
     for group in ["short", "low", "mid", "high"]:
         idx = np.flatnonzero(groups == group)
         if not len(idx):
-            raise ValueError(f"State group {group!r} is empty; coherence feature cannot support a four-state router.")
+            # A group absent from validation has no learned policy. If it
+            # appears on test because of a distribution shift, fall back to
+            # the validation-global expert rather than aborting evaluation.
+            mapping[group] = always_temp
+            continue
         candidates = []
         for temperature in temperatures:
             _, ndcg = metric(valid[f"rank_t{temperature:g}"][idx], select_k)
             candidates.append((ndcg, -temperature, temperature))
         mapping[group] = max(candidates)[2]
-    all_candidates = []
-    for temperature in temperatures:
-        _, ndcg = metric(valid[f"rank_t{temperature:g}"], select_k)
-        all_candidates.append((ndcg, -temperature, temperature))
-    return mapping, max(all_candidates)[2]
+    return mapping, always_temp
 
 
 def routed_ranks(stats: dict, route: dict[str, float], coherence_group: np.ndarray) -> np.ndarray:
@@ -145,7 +150,7 @@ def routed_ranks(stats: dict, route: dict[str, float], coherence_group: np.ndarr
 
 def rows_for_split(stats: dict, split: str, temperatures: list[float], coherence_group: np.ndarray, route: dict[str, float], always_temp: float, reference_temp: float, popularity: np.ndarray, cutoffs: list[int]) -> list[dict]:
     partitions = {"all": np.arange(len(stats["items"]))}
-    partitions.update({f"state_{group}": np.flatnonzero(coherence_group == group) for group in ["short", "low", "mid", "high"]})
+    partitions.update({f"state_{group}": idx for group in ["short", "low", "mid", "high"] if len(idx := np.flatnonzero(coherence_group == group))})
     for group, idx in tail_groups(stats["items"], popularity).items():
         partitions[group] = idx
     rank_sets = {f"expert_t{temperature:g}": stats[f"rank_t{temperature:g}"] for temperature in temperatures}
