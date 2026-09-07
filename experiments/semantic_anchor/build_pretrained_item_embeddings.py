@@ -4,6 +4,7 @@
 import argparse
 import csv
 import json
+import os
 import re
 from pathlib import Path
 
@@ -105,6 +106,7 @@ def main():
         "fields": fields,
         "model_name": args.model_name,
         "model_tag": model_tag,
+        "hf_endpoint": os.environ.get("HF_ENDPOINT", ""),
         "batch_size": args.batch_size,
         "device": args.device,
         "normalize": args.normalize,

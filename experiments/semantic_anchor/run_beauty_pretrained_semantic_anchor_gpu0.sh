@@ -16,6 +16,7 @@ TEXT_MODEL_TAG="${TEXT_MODEL_TAG:-allminilml6v2}"
 TEXT_DIM="${TEXT_DIM:-384}"
 TEXT_BATCH_SIZE="${TEXT_BATCH_SIZE:-256}"
 TEXT_DEVICE="${TEXT_DEVICE:-cuda:0}"
+HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
 
 HIDDEN_SIZE="${HIDDEN_SIZE:-256}"
 INNER_SIZE="${INNER_SIZE:-1024}"
@@ -58,6 +59,7 @@ fi
 echo "[$(date '+%F %T')] ROOT=$ROOT" | tee -a "$LOG_DIR/master.log"
 echo "[$(date '+%F %T')] build pretrained semantic embeddings dataset=$DATASET model=$TEXT_MODEL_NAME" | tee -a "$LOG_DIR/master.log"
 export CUDA_VISIBLE_DEVICES="$GPU_ID"
+export HF_ENDPOINT="$HF_ENDPOINT"
 conda run --no-capture-output -n "$CONDA_ENV" python experiments/semantic_anchor/build_pretrained_item_embeddings.py \
   --dataset "$DATASET" \
   --data_path "$ROOT/dataset" \
