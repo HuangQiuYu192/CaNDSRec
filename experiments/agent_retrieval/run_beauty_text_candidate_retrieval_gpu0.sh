@@ -14,7 +14,9 @@ DATASET="${DATASET:-Beauty}"
 SEED="${SEED:-2025}"
 HIDDEN_SIZE="${HIDDEN_SIZE:-256}"
 MAX_LEN="${MAX_LEN:-50}"
-INNER_SIZE="${INNER_SIZE:-256}"
+# This value is automatically checked against the selected checkpoint by the
+# Python analyzer.  Keep it as an explicit override for transparent logs.
+INNER_SIZE="${INNER_SIZE:-1024}"
 TEMPERATURE="${TEMPERATURE:-10}"
 EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-256}"
 TOPK="${TOPK:-100}"

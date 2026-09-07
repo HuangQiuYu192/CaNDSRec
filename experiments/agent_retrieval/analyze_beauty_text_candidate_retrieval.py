@@ -97,6 +97,28 @@ def make_text_matrix(documents: list[str], max_features: int, min_df: int, ngram
     return sparse.vstack([sparse.csr_matrix((1, matrix.shape[1]), dtype=np.float32), matrix], format="csr"), vectorizer
 
 
+def align_architecture_to_checkpoint(args: argparse.Namespace) -> None:
+    """Read architecture dimensions from a checkpoint before RecBole builds.
+
+    ``strict=False`` does not suppress tensor-shape mismatches in PyTorch.
+    Beauty checkpoints in this project include both ``inner_size=256`` and
+    ``inner_size=1024`` runs, so this small inspection avoids silently binding
+    a valid checkpoint to the wrong runner default.
+    """
+    try:
+        checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
+    except TypeError:  # compatibility with older PyTorch releases
+        checkpoint = torch.load(args.checkpoint, map_location="cpu")
+    state = checkpoint.get("state_dict", checkpoint)
+    ffn_key = "trm_encoder.layer.0.feed_forward.dense_1.weight"
+    if ffn_key not in state:
+        raise KeyError(f"Cannot infer FFN width: checkpoint lacks {ffn_key}")
+    checkpoint_inner = int(state[ffn_key].shape[0])
+    if args.inner_size != checkpoint_inner:
+        print(f"checkpoint architecture: overriding --inner_size {args.inner_size} -> {checkpoint_inner}")
+        args.inner_size = checkpoint_inner
+
+
 def target_groups(items: np.ndarray, popularity: np.ndarray) -> dict[str, np.ndarray]:
     order = np.argsort(-popularity[items], kind="stable")
     return {"all": np.arange(len(items)), **dict(zip(["head", "mid", "tail"], np.array_split(order, 3)))}
@@ -258,6 +280,7 @@ def main() -> None:
     if args.cands_quota + args.text_quota != args.topk:
         raise ValueError("--cands_quota + --text_quota must equal --topk for a budget-matched fusion.")
 
+    align_architecture_to_checkpoint(args)
     # Importing the project model registry also imports optional model
     # dependencies (for example Faiss).  Delay it until the actual checkpoint
     # evaluation so metadata auditing/index construction remains independently
