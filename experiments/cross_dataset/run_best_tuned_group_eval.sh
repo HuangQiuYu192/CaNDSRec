@@ -102,6 +102,7 @@ eval_one() {
 }
 
 tail -n +2 "$TASK_FILE" | while IFS=$'\t' read -r dataset method model hidden max_len inner_size temperature weight smooth_k smooth_temp quantile threshold run_name checkpoint; do
+  checkpoint="${checkpoint%$'\r'}"
   eval_one "$dataset" "$method" "$model" "$hidden" "$max_len" "$inner_size" "$temperature" "$weight" "$smooth_k" "$smooth_temp" "$quantile" "$threshold" "$run_name" "$checkpoint"
 done
 

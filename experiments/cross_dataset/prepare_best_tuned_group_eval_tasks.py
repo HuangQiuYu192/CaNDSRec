@@ -90,7 +90,7 @@ def main() -> None:
         "weight", "k", "smooth_temp", "quantile", "threshold", "run_name", "checkpoint",
     ]
     with out_tsv.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=headers, delimiter="\t")
+        writer = csv.DictWriter(f, fieldnames=headers, delimiter="\t", lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
