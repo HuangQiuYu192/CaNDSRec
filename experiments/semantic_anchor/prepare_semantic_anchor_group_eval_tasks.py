@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import csv
+import re
 from pathlib import Path
 
 
@@ -36,10 +37,25 @@ def latest_checkpoint(ckpt_dir: Path, name: str) -> str:
     return str(checkpoints[-1]) if checkpoints else ""
 
 
+def checkpoint_from_log(log_dir: Path, name: str) -> str:
+    log_path = log_dir / f"{name}.log"
+    if not log_path.exists():
+        return ""
+    text = log_path.read_text(encoding="utf-8", errors="ignore")
+    matches = re.findall(r"Loading model structure and parameters from\s+(.+?\.pth)", text)
+    if matches:
+        return matches[-1].strip().rstrip("\r")
+    matches = re.findall(r"Saving current best:\s+(.+?\.pth)", text)
+    if matches:
+        return matches[-1].strip().rstrip("\r")
+    return ""
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--summary_csv", default="log_runs/beauty_tfidf_semantic_anchor_gpu0/semantic_anchor_summary.csv")
     parser.add_argument("--ckpt_dir", default="ckpt/beauty_tfidf_semantic_anchor_gpu0")
+    parser.add_argument("--log_dir", default=None)
     parser.add_argument("--semantic_embedding_path", default="dataset/Beauty/Beauty.tfidf_svd128.npy")
     parser.add_argument("--top_n", default=5, type=int)
     parser.add_argument("--rank_metric", default="ndcg@10")
@@ -57,7 +73,9 @@ def main():
     tasks = []
     for row in selected:
         name = run_name(row)
-        checkpoint = latest_checkpoint(Path(args.ckpt_dir), name)
+        checkpoint = checkpoint_from_log(Path(args.log_dir), name) if args.log_dir else ""
+        if not checkpoint:
+            checkpoint = latest_checkpoint(Path(args.ckpt_dir), name)
         tasks.append(
             {
                 "run_name": name,

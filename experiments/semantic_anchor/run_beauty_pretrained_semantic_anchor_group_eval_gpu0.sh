@@ -43,6 +43,7 @@ fi
 python experiments/semantic_anchor/prepare_semantic_anchor_group_eval_tasks.py \
   --summary_csv "$SUMMARY_CSV" \
   --ckpt_dir "$CKPT_DIR" \
+  --log_dir "$ROOT/log_runs/$TAG" \
   --semantic_embedding_path "$SEMANTIC_EMBEDDING_PATH" \
   --top_n "$TOP_N" \
   --rank_metric "$RANK_METRIC" \
