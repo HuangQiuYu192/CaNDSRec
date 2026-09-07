@@ -26,6 +26,7 @@ NEIGHBOR_K="${NEIGHBOR_K:-10}"
 RECENT_WINDOW="${RECENT_WINDOW:-5}"
 MAX_BATCHES="${MAX_BATCHES:-}"
 FORCE="${FORCE:-False}"
+RUN_COMPETITION="${RUN_COMPETITION:-False}"
 
 mkdir -p "$OUT_DIR" "$LOG_DIR"
 cd "$ROOT"
@@ -53,16 +54,15 @@ tail -n +2 "$TASK_FILE" | while IFS=$'\t' read -r dataset hidden max_len temp ca
     echo "MISSING $tag base=$base_checkpoint smooth=$smooth_checkpoint" | tee -a "$LOG_DIR/master.log"
     continue
   fi
-  if [ -s "${out_prefix}.csv" ] && [ "$FORCE" != "True" ]; then
-    echo "SKIP $tag (already exists)" | tee -a "$LOG_DIR/master.log"
-    continue
-  fi
   extra_args=()
   if [ -n "$MAX_BATCHES" ]; then
     extra_args=(--max_batches "$MAX_BATCHES")
   fi
-  echo "START $tag" | tee -a "$LOG_DIR/master.log"
-  conda run --no-capture-output -n "$CONDA_ENV" python experiments/cross_dataset/analyze_angular_smooth_evidence.py \
+  if [ -s "${out_prefix}.csv" ] && [ "$FORCE" != "True" ]; then
+    echo "SKIP evidence $tag (already exists)" | tee -a "$LOG_DIR/master.log"
+  else
+    echo "START evidence $tag" | tee -a "$LOG_DIR/master.log"
+    conda run --no-capture-output -n "$CONDA_ENV" python experiments/cross_dataset/analyze_angular_smooth_evidence.py \
     --dataset "$dataset" \
     --cands_checkpoint "$base_checkpoint" \
     --smooth_checkpoint "$smooth_checkpoint" \
@@ -77,8 +77,30 @@ tail -n +2 "$TASK_FILE" | while IFS=$'\t' read -r dataset hidden max_len temp ca
     --angular_smooth_sim_threshold "$threshold" --angular_smooth_pop_weight False \
     --neighbor_k "$NEIGHBOR_K" --recent_window "$RECENT_WINDOW" \
     --out_prefix "$out_prefix" "${extra_args[@]}" \
-    > "$LOG_DIR/${tag}.log" 2>&1
-  echo "DONE $tag" | tee -a "$LOG_DIR/master.log"
+      > "$LOG_DIR/${tag}.log" 2>&1
+    echo "DONE evidence $tag" | tee -a "$LOG_DIR/master.log"
+  fi
+  competition_prefix="${out_prefix}_neighbor_competition"
+  if [ "$RUN_COMPETITION" = "True" ]; then
+    if [ -s "${competition_prefix}_summary.csv" ] && [ "$FORCE" != "True" ]; then
+      echo "SKIP competition $tag (already exists)" | tee -a "$LOG_DIR/master.log"
+    else
+      echo "START competition $tag" | tee -a "$LOG_DIR/master.log"
+      conda run --no-capture-output -n "$CONDA_ENV" python experiments/cross_dataset/analyze_angular_smooth_neighbor_competition.py \
+        --dataset "$dataset" --cands_checkpoint "$base_checkpoint" --smooth_checkpoint "$smooth_checkpoint" \
+        --gpu_id "$GPU_ID" --seed "$SEED" --hidden_size "$hidden" --max_item_list_length "$max_len" \
+        --cands_inner_size "$cands_inner_size" --smooth_inner_size "$smooth_inner_size" --temperature "$temp" \
+        --n_layers "$N_LAYERS" --n_heads "$N_HEADS" --hidden_dropout_prob "$HIDDEN_DROPOUT_PROB" \
+        --attn_dropout_prob "$ATTN_DROPOUT_PROB" --learning_rate "$LEARNING_RATE" \
+        --train_batch_size "$TRAIN_BATCH_SIZE" --eval_batch_size "$EVAL_BATCH_SIZE" \
+        --angular_smooth_weight "$weight" --angular_smooth_k "$smooth_k" \
+        --angular_smooth_temperature "$smooth_temp" --angular_smooth_pop_quantile "$quantile" \
+        --angular_smooth_sim_threshold "$threshold" --angular_smooth_pop_weight False \
+        --neighbor_k "$NEIGHBOR_K" --recent_window "$RECENT_WINDOW" --out_prefix "$competition_prefix" "${extra_args[@]}" \
+        > "$LOG_DIR/${tag}_neighbor_competition.log" 2>&1
+      echo "DONE competition $tag" | tee -a "$LOG_DIR/master.log"
+    fi
+  fi
 done
 
 echo "ALL_DONE" | tee -a "$LOG_DIR/master.log"
