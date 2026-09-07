@@ -83,7 +83,12 @@ def item_documents(meta_path: Path, item_map_path: Path, item_num: int) -> list[
 
 
 def make_text_matrix(documents: list[str], max_features: int, min_df: int, ngram_max: int):
-    valid = [text if text else "missing metadata" for text in documents[1:]]
+    # Missing evidence must produce a zero vector, rather than a shared
+    # "missing" token that could make unrelated no-evidence items retrieve one
+    # another (especially important for split-safe review documents).
+    valid = [text for text in documents[1:] if text]
+    if not valid:
+        raise ValueError("No non-empty evidence documents were built.")
     vectorizer = TfidfVectorizer(
         max_features=max_features,
         min_df=min_df,
@@ -93,7 +98,8 @@ def make_text_matrix(documents: list[str], max_features: int, min_df: int, ngram
         token_pattern=r"(?u)\b\w\w+\b",
         dtype=np.float32,
     )
-    matrix = vectorizer.fit_transform(valid).tocsr()
+    vectorizer.fit(valid)
+    matrix = vectorizer.transform(documents[1:]).tocsr()
     return sparse.vstack([sparse.csr_matrix((1, matrix.shape[1]), dtype=np.float32), matrix], format="csr"), vectorizer
 
 
@@ -227,19 +233,26 @@ def summarize(stats: dict, popularity: np.ndarray, topk: int, cands_quota: int, 
     return rows
 
 
-def write_outputs(out_prefix: Path, rows: list[dict], stats: dict, args, matrix_shape: tuple[int, int]) -> None:
+def write_outputs(
+    out_prefix: Path, rows: list[dict], stats: dict, args, matrix_shape: tuple[int, int], evidence_info: dict | None = None,
+) -> None:
     out_prefix.parent.mkdir(parents=True, exist_ok=True)
     fields = ["group", "n", "variant", "candidate_budget", f"candidate_recall@{args.topk}", "mean_candidate_count"]
     with Path(f"{out_prefix}_summary.csv").open("w", newline="", encoding="utf-8") as output:
         writer = csv.DictWriter(output, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
-    lines = ["# Beauty text candidate-retrieval validation", "", "This experiment uses only static `title + categories + description`; it does **not** index reviews.", "", "| group | n | variant | candidate budget | Candidate Recall@%d | mean candidates |" % args.topk, "| --- | ---: | --- | ---: | ---: | ---: |"]
+    evidence_info = evidence_info or {
+        "label": "static `title + categories + description`",
+        "reviews_used": False,
+        "safety": "No reviews are indexed.",
+    }
+    lines = [f"# Beauty {evidence_info['label']} candidate-retrieval validation", "", evidence_info["safety"], "", "| group | n | variant | candidate budget | Candidate Recall@%d | mean candidates |" % args.topk, "| --- | ---: | --- | ---: | ---: | ---: |"]
     for row in rows:
         lines.append("| {group} | {n} | {variant} | {candidate_budget} | {recall:.4f} | {mean:.2f} |".format(group=row["group"], n=row["n"], variant=row["variant"], candidate_budget=row["candidate_budget"], recall=row[f"candidate_recall@{args.topk}"], mean=row["mean_candidate_count"]))
     lines += ["", "## Interpretation", "", "- `union_up_to_*` has a larger candidate pool and is an upper-bound complementarity diagnostic, not a budget-matched comparison.", "- Compare `fixed_budget_cands*_text*` against `fixed_budget_cands*_random*`: a tail gain here is evidence that textual candidates add value beyond merely replacing some CaNDS candidates.", "- The next stage may add review evidence only after reconstructing a train-only, timestamp-safe review index.", ""]
     Path(f"{out_prefix}_summary.md").write_text("\n".join(lines), encoding="utf-8")
-    metadata = {"dataset": args.dataset, "checkpoint": args.checkpoint, "text_fields": ["title", "categories", "description"], "reviews_used": False, "topk": args.topk, "cands_quota": args.cands_quota, "text_quota": args.text_quota, "tfidf_shape": list(matrix_shape), "num_test_instances": int(len(stats["items"])), "max_batches": args.max_batches}
+    metadata = {"dataset": args.dataset, "checkpoint": args.checkpoint, "evidence": evidence_info, "topk": args.topk, "cands_quota": args.cands_quota, "text_quota": args.text_quota, "tfidf_shape": list(matrix_shape), "num_test_instances": int(len(stats["items"])), "max_batches": args.max_batches}
     Path(f"{out_prefix}_meta.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     sample_fields = ["target_item", "cands_contains_target", "text_contains_target", "union_contains_target", "fusion_contains_target", "random_control_contains_target"]
     with Path(f"{out_prefix}_samples.csv").open("w", newline="", encoding="utf-8") as output:
