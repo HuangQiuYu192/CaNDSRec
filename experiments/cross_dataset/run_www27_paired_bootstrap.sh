@@ -18,8 +18,8 @@ for dataset in $DATASETS_STR; do
   for seed in $SEEDS_STR; do
     out="$OUT_ROOT/$dataset/seed$seed"
     if [ -f "$out.csv" ]; then echo "SKIP $dataset seed=$seed"; continue; fi
-    base=$(find "$CKPT_ROOT/$dataset/seed$seed/SASRec" -type f -name '*.pth' | head -n 1)
-    cands=$(find "$CKPT_ROOT/$dataset/seed$seed/CANDSSASRec" -type f -name '*.pth' | head -n 1)
+    base=$(find "$CKPT_ROOT/$dataset/seed$seed" -maxdepth 1 -type f -name 'SASRec-*.pth' | head -n 1)
+    cands=$(find "$CKPT_ROOT/$dataset/seed$seed" -maxdepth 1 -type f -name 'CANDSSASRec-*.pth' | head -n 1)
     if [ -z "$base" ] || [ -z "$cands" ]; then echo "missing checkpoint $dataset seed=$seed" >&2; exit 2; fi
     conda run --no-capture-output -n "$CONDA_ENV" python experiments/cross_dataset/analyze_www27_paired_bootstrap.py \
       --dataset "$dataset" --seed "$seed" --base_checkpoint "$base" --cands_checkpoint "$cands" \
