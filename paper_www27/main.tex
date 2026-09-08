@@ -1,0 +1,88 @@
+\documentclass[sigconf,anonymous,review]{acmart}
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\usepackage{booktabs,amsmath,amssymb,amsthm,bm,enumitem,xcolor}
+\newcommand{\cands}{\textsc{CaNDS}}
+\newcommand{\sasrec}{\textsc{SASRec}}
+\newcommand{\TODO}[1]{\textcolor{red}{[TBD: #1]}}
+\newtheorem{proposition}{Proposition}
+\begin{document}
+\title{Directional Calibration for Sequential Recommendation: Diagnosing Popularity-Correlated Radial Confounding}
+\begin{abstract}
+Sequential recommenders commonly score an item by the dot product of a sequence representation and an item embedding. This score entangles directional compatibility with representation norms; the latter can correlate with training frequency and act as an uncontrolled item-specific multiplier. We study directional calibration: unit-normalizing both representations and using one global temperature for softmax concentration. We instantiate it in \cands{}, a parameter-free modification of a self-attentive sequential recommender. Rather than equating an endpoint difference with a mechanism, we derive a pairwise rank-reversal condition and evaluate it with within-checkpoint dot-versus-cosine counterfactuals, norm--popularity correlations, and matched-seed endpoint comparisons. Numerical claims are evidence-gated until the running multi-seed experiments complete.
+\end{abstract}
+\begin{CCSXML}<ccs2012><concept><concept_id>10002951.10003317.10003347.10003350</concept_id><concept_desc>Information systems~Recommender systems</concept_desc><concept_significance>500</concept_significance></concept></ccs2012>\end{CCSXML}
+\ccsdesc[500]{Information systems~Recommender systems}
+\keywords{sequential recommendation, long-tail recommendation, cosine similarity, embedding geometry, popularity bias}
+\maketitle
+\section{Introduction}
+Sequential recommendation predicts the next interaction from an ordered history. Recurrent, self-attentive, and masked-item models differ in how they construct a sequence state~\cite{hidasi2016gru4rec,kang2018sasrec,sun2019bert4rec}, but commonly finish with $s_{ui}=\bm h_u^\top\bm e_i$. Writing $\bm h_u=\|\bm h_u\|\widehat{\bm h}_u$ and $\bm e_i=\|\bm e_i\|\widehat{\bm e}_i$ gives
+\begin{equation}
+s_{ui}=\underbrace{\|\bm h_u\|\|\bm e_i\|}_{\text{radial scale}}\underbrace{\widehat{\bm h}_u^\top\widehat{\bm e}_i}_{\text{directional compatibility}}.\label{eq:dot}
+\end{equation}
+An item norm thus multiplies every user's score. Norms may encode useful information, but their association with frequency is an empirical confound in long-tailed implicit data. Popularity can affect accuracy, exposure, and learned ranking~\cite{steck2011popularity,abdollahpouri2017controlling}.
+
+We ask a narrow, falsifiable question: when does radial scale reverse a ranking that directional similarity would prefer? \cands{} removes item-specific radial scale from the final score while retaining one global temperature. It adds no side information, agent, synthetic interaction, or trainable parameter. Since independently trained models cannot isolate geometry from optimization, we additionally evaluate score changes within a fixed checkpoint.
+
+\section{Related Work}
+Sequential architectures improve how histories are represented~\cite{hidasi2016gru4rec,kang2018sasrec,sun2019bert4rec}; our question is orthogonal: what geometry should compare the resulting state to all items? Existing popularity-aware work controls frequency effects in ranking~\cite{steck2011popularity,abdollahpouri2017controlling}. We test a representation-level route in which candidate radius can multiply a dot-product score despite a target having stronger angular compatibility. Normalized embeddings make angular relations explicit~\cite{wang2017normface,davidson2018hyperspherical}; here normalization is a testable sequential ranking restriction rather than a universal remedy.
+
+\section{Method and Analysis}
+For prefix $\bm x_u=(i_1,\ldots,i_L)$, an encoder produces $\bm h_u=f_\theta(\bm x_u)$. For positive next item $i^+$, \cands{} uses
+\begin{equation}
+\ell_{ui}=\tau\widehat{\bm h}_u^\top\widehat{\bm e}_i,\qquad \mathcal L=-\log\frac{\exp(\ell_{ui^+})}{\sum_{j\in\mathcal I}\exp(\ell_{uj})}.\label{eq:cands}
+\end{equation}
+The global $\tau>0$ controls likelihood concentration and gradient scale but cannot change within-user item ordering. For target $t$ and competitor $p$, set $c_t=\widehat{\bm h}_u^\top\widehat{\bm e}_t$ and $c_p=\widehat{\bm h}_u^\top\widehat{\bm e}_p$. If $c_t>c_p>0$, directional scoring chooses $t$ but the dot product chooses $p$ exactly when
+\begin{equation}
+\frac{\|\bm e_p\|_2}{\|\bm e_t\|_2}>\frac{c_t}{c_p}.\label{eq:reversal}
+\end{equation}
+The sequence norm cancels, making this a candidate-side radial effect.
+\begin{proposition}For nonzero representations, \cands{} ranks $t$ above $p$ if and only if $c_t>c_p$, and this order is invariant to independent positive rescaling of the sequence and item vectors.\end{proposition}
+\begin{proof}Equation~\ref{eq:cands} is the positive constant $\tau$ times $c_i$; normalization removes every positive radial multiplier.\end{proof}
+The proposition does not guarantee higher metrics: radius can contain useful information. Mechanism diagnostics and matched endpoint tests are therefore both necessary.
+
+\section{Experimental Protocol}
+We process Amazon Beauty, Sports, and Toys into chronological sequences. Validation and test use leave-one-out targets. Head, mid, and tail are equal-sized partitions of active items sorted by \emph{training} interaction count, preventing test leakage. We report full-sort Recall and NDCG at $\{5,10,20,50,100\}$ overall and by target group.
+
+\sasrec{} and \cands{} share architecture, split, optimizer, batch size, early stopping, and seed. The base setup has two layers, 256 hidden units, two heads, inner size 1024, maximum length 50, and $\tau=10$. Three matched seeds provide mean, standard deviation, paired user-bootstrap intervals, and fraction of positive deltas. Temperature is selected on validation data and frozen before test evaluation.
+
+For each fixed test state, our diagnostic masks histories identically and ranks candidates by dot product and cosine. It records the strongest dot-product competitor, its norm and group, angular margin, norm ratio, and whether the target is directionally preferred but dot-displaced. This is a scoring counterfactual, not a causal claim about retraining.
+
+\section{Results and Analysis}
+\subsection{Matched endpoint evaluation}
+Table~\ref{tab:main} will be populated only from running same-seed artifacts, not historical incomparable checkpoints.
+\begin{table*}[t]\caption{Full-sort matched-seed evaluation (mean $\pm$ standard deviation). TBD entries are not claims.}\label{tab:main}\centering\small
+\begin{tabular}{llrrrrrrrr}\toprule
+Dataset&Model&R@10&N@10&R@50&N@50&Tail R@10&Tail N@10&Seeds\\\midrule
+Beauty&\sasrec{}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&3\\
+Beauty&\cands{}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&3\\
+Sports&\sasrec{}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&3\\
+Sports&\cands{}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&3\\
+Toys&\sasrec{}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&3\\
+Toys&\cands{}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&\TODO{run}&3\\\bottomrule
+\end{tabular}\end{table*}
+
+\subsection{Mechanism evidence}
+We report three distinct quantities: norm--popularity association, fixed-state rank change after radial removal, and retrained endpoint metrics. Positive counterfactual evidence supports a diagnostic mechanism, not general performance. Conversely, endpoint gains without rank reversals suggest another regularization pathway.
+\begin{table}[t]\caption{Counterfactual diagnostics. Displacement means target cosine is higher than its strongest dot competitor but it loses under dot scoring.}\label{tab:mechanism}\centering\small
+\begin{tabular}{llrrr}\toprule Dataset&Model&$\rho(\|e\|,pop)$&Tail displacement&$\Delta$R@10 cos--dot\\\midrule
+Beauty&\sasrec{}&\TODO{run}&\TODO{run}&\TODO{run}\\
+Beauty&\cands{}&\TODO{run}&\TODO{run}&\TODO{run}\\
+Sports&\sasrec{}&\TODO{run}&\TODO{run}&\TODO{run}\\
+Sports&\cands{}&\TODO{run}&\TODO{run}&\TODO{run}\\
+Toys&\sasrec{}&\TODO{run}&\TODO{run}&\TODO{run}\\
+Toys&\cands{}&\TODO{run}&\TODO{run}&\TODO{run}\\\bottomrule
+\end{tabular}\end{table}
+
+\subsection{Sensitivity and failure modes}
+We sweep $\tau\in\{1,3,5,10,20\}$ and width $d\in\{64,128,256\}$ and retain negative results. The intervention is expected to help only where radial displacement is material; it is not a universal tail correction or a substitute for missing item semantics.
+
+\section{Discussion, Limitations, and Ethics}
+\cands{} neither reconstructs missing tail evidence nor guarantees exposure. A norm--frequency association is descriptive and can reflect utility, age, or data collection. The fixed-checkpoint comparison controls state and candidate directions but cannot identify a causal data-generation process. We use anonymous public interaction IDs, no sensitive attributes, no review text, and no synthetic behavior. Data redistribution follows original source terms; deployment would require coverage and stakeholder analyses beyond offline accuracy.
+
+\section{Conclusion}
+Directional calibration replaces item-specific radial scale by shared temperature-controlled angular compatibility. Its claim is bounded: benefit is expected only where high-radius competitors reverse directionally preferable rankings and the effect survives matched-seed testing.
+\bibliographystyle{ACM-Reference-Format}\bibliography{references}
+\appendix\section{Reproducibility Checklist}
+\begin{enumerate}[leftmargin=*]\item Popularity groups use training interactions only.\item Temperature selection never uses test metrics.\item Both counterfactual scores share checkpoint, history mask, examples, and candidate universe.\item Every endpoint row records data version, seed, checkpoint, and command.\item Bootstrap resampling is by user, not position.\end{enumerate}
+\end{document}
