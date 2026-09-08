@@ -7,9 +7,9 @@
 \newcommand{\TODO}[1]{\textcolor{red}{[TBD: #1]}}
 \newtheorem{proposition}{Proposition}
 \begin{document}
-\title{Directional Calibration for Sequential Recommendation: Diagnosing Popularity-Correlated Radial Confounding}
+\title{Directional Calibration for Sequential Recommendation: An Evidence-Driven Study of Embedding Geometry}
 \begin{abstract}
-Sequential recommenders commonly score an item by the dot product of a sequence representation and an item embedding. This score entangles directional compatibility with representation norms; the latter can correlate with training frequency and act as an uncontrolled item-specific multiplier. We study directional calibration: unit-normalizing both representations and using one global temperature for softmax concentration. We instantiate it in \cands{}, a parameter-free modification of a self-attentive sequential recommender. Rather than equating an endpoint difference with a mechanism, we derive a pairwise rank-reversal condition and evaluate it with within-checkpoint dot-versus-cosine counterfactuals, norm--popularity correlations, and matched-seed endpoint comparisons. Numerical claims are evidence-gated until the running multi-seed experiments complete.
+Sequential recommenders commonly score an item by the dot product of a sequence representation and an item embedding. This score entangles directional compatibility with representation norms; the latter can correlate with training frequency and act as an item-specific multiplier. We study directional calibration: unit-normalizing both representations and using one global temperature for softmax concentration. We instantiate it in \cands{}, a parameter-free modification of a self-attentive sequential recommender. Rather than assuming that radial scale is harmful, we derive a pairwise rank-reversal condition and evaluate it with within-checkpoint dot-versus-cosine counterfactuals, norm--popularity correlations, and matched-seed endpoint comparisons. Numerical claims are evidence-gated until the running multi-seed experiments complete.
 \end{abstract}
 \begin{CCSXML}<ccs2012><concept><concept_id>10002951.10003317.10003347.10003350</concept_id><concept_desc>Information systems~Recommender systems</concept_desc><concept_significance>500</concept_significance></concept></ccs2012>\end{CCSXML}
 \ccsdesc[500]{Information systems~Recommender systems}
@@ -20,7 +20,7 @@ Sequential recommendation predicts the next interaction from an ordered history.
 \begin{equation}
 s_{ui}=\underbrace{\|\bm h_u\|\|\bm e_i\|}_{\text{radial scale}}\underbrace{\widehat{\bm h}_u^\top\widehat{\bm e}_i}_{\text{directional compatibility}}.\label{eq:dot}
 \end{equation}
-An item norm thus multiplies every user's score. Norms may encode useful information, but their association with frequency is an empirical confound in long-tailed implicit data. Popularity can affect accuracy, exposure, and learned ranking~\cite{steck2011popularity,abdollahpouri2017controlling}.
+An item norm thus multiplies every user's score. Norms may encode useful information, and their association with frequency is an empirical question rather than a presupposition. Popularity can affect accuracy, exposure, and learned ranking~\cite{steck2011popularity,abdollahpouri2017controlling}.
 
 We ask a narrow, falsifiable question: when does radial scale reverse a ranking that directional similarity would prefer? \cands{} removes item-specific radial scale from the final score while retaining one global temperature. It adds no side information, agent, synthetic interaction, or trainable parameter. Since independently trained models cannot isolate geometry from optimization, we additionally evaluate score changes within a fixed checkpoint.
 
