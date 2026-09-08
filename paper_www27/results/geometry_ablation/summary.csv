@@ -1,0 +1,11 @@
+dataset,seed,variant,recall_at_10,ndcg_at_10,recall_at_20,ndcg_at_20
+LastFM-S3Rec,2025,dot,0.0495,0.0240,0.0789,0.0314
+LastFM-S3Rec,2025,sequence_only,0.0651,0.0339,0.0991,0.0425
+LastFM-S3Rec,2025,item_only,0.0560,0.0272,0.0844,0.0344
+LastFM-S3Rec,2025,joint,0.0624,0.0329,0.1028,0.0429
+LastFM-S3Rec,2025,dot_l2e4,0.0550,0.0275,0.0881,0.0357
+Yelp-S3Rec,2025,dot,0.0570,0.0366,0.0816,0.0428
+Yelp-S3Rec,2025,sequence_only,0.0628,0.0388,0.0913,0.0459
+Yelp-S3Rec,2025,item_only,0.0542,0.0356,0.0789,0.0418
+Yelp-S3Rec,2025,joint,0.0672,0.0409,0.0987,0.0488
+Yelp-S3Rec,2025,dot_l2e4,0.0581,0.0364,0.0852,0.0432

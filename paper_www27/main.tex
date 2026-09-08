@@ -207,6 +207,42 @@ Toys&\sasrec{}&-.709&.0084&-.0019\\
 &\cands{}&-.175&.0168&+.0059\\\bottomrule
 \end{tabular}}\end{table}
 
+\subsection{Direct gradient check and external decomposition}
+The gradient prediction is observed directly rather than inferred from final
+embedding norms. Across 16 fixed training mini-batches, the radial energy
+fraction of the item-table gradient is $5.20\%$ for Beauty SASRec and $3.72\%$
+for Sports SASRec, versus $0.056\%$ and $0.102\%$ for the corresponding
+CaNDS checkpoints. The small residual is expected from finite-precision
+normalization and confirms the tangential prediction in Eq.~\ref{eq:tangent}
+at the level of the implemented loss.
+
+We then run one pre-specified external decomposition on LastFM and Yelp. This
+is not a new main comparison or a multi-seed claim; it probes which part of
+the scoring intervention transfers beyond the short Amazon sequences. Joint
+normalization is strongest on Yelp, whereas sequence-only normalization is
+slightly stronger on LastFM at NDCG@10. Thus the result supports neither a
+universal joint-normalization theorem nor a generic ``smaller norm''
+explanation. In particular, the dot-product L2 control does not match joint
+normalization on either dataset. The data motivate multi-seed follow-up and
+identify sequence-scale calibration as a competing, measurable explanation.
+\begin{table}[t]
+\caption{Single-seed external score-geometry decomposition ($d=256$). These
+are exploratory mechanism checks, not selected or averaged main-table scores.}
+\label{tab:decomposition}\centering\scriptsize
+\begin{tabular}{llrrrr}\toprule
+Dataset&Score geometry&R@10&N@10&R@20&N@20\\\midrule
+LastFM&Dot&.0495&.0240&.0789&.0314\\
+&Sequence-only&\textbf{.0651}&\textbf{.0339}&.0991&.0425\\
+&Item-only&.0560&.0272&.0844&.0344\\
+&Joint&.0624&.0329&\textbf{.1028}&\textbf{.0429}\\
+&Dot + L2&.0550&.0275&.0881&.0357\\
+Yelp&Dot&.0570&.0366&.0816&.0428\\
+&Sequence-only&.0628&.0388&.0913&.0459\\
+&Item-only&.0542&.0356&.0789&.0418\\
+&Joint&\textbf{.0672}&\textbf{.0409}&\textbf{.0987}&\textbf{.0488}\\
+&Dot + L2&.0581&.0364&.0852&.0432\\\bottomrule
+\end{tabular}\end{table}
+
 \subsection{Sensitivity and failure modes}
 The current evidence fixes $\tau=10$ and $d=256$ to isolate scoring geometry. This choice is intentionally not presented as a universal optimum. The one-seed temperature diagnostic on each Amazon domain selects $\tau=10$ from $\{5,10,20\}$, but it is not used to make a universal temperature claim; all final choices must remain validation-only. We additionally pre-specify two lightweight external checks on LastFM and Yelp: the score-geometry decomposition above and a one-seed matched endpoint/diagnostic run. These checks assess whether the proposed radial mechanism is visible beyond short Amazon purchase histories, not whether CaNDS dominates an expanded SOTA benchmark. The matched seeds do nevertheless identify two concrete failure modes. First, a post-hoc cosine replacement can fail even when retraining with directional calibration helps; score-time intervention and training-time intervention must therefore not be used as synonyms. Second, tail NDCG can decrease even when aggregate Recall and NDCG improve. A practitioner seeking tail coverage should use a method that introduces tail-specific evidence, objectives, or constraints rather than treating normalization as a substitute for them.
 

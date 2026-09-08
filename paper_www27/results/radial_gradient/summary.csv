@@ -1,0 +1,5 @@
+dataset,seed,model,batches,radial_energy_fraction,tangential_energy_fraction
+Beauty,2025,SASRec,16,0.05195981,0.94804022
+Beauty,2025,CANDSSASRec,16,0.00056011,0.99943990
+Sports,2025,SASRec,16,0.03723108,0.96276891
+Sports,2025,CANDSSASRec,16,0.00102201,0.99897799
