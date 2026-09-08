@@ -17,7 +17,19 @@ OUT_DIR="${OUT_DIR:-$ROOT/analysis_results/www27_directional_calibration}"
 
 latest_ckpt() {
   local run_name="$1"
-  find "$CKPT_DIR/$run_name" -type f -name '*.pth' 2>/dev/null | sort | tail -n 1
+  local nested
+  nested="$(find "$CKPT_DIR/$run_name" -type f -name '*.pth' 2>/dev/null | sort | tail -n 1)"
+  if [ -n "$nested" ]; then
+    echo "$nested"
+    return 0
+  fi
+  # RecBole also permits a flat checkpoint directory.  Infer only the model
+  # prefix here; the caller has already supplied an isolated experiment dir.
+  local pattern='SASRec-*.pth'
+  if [[ "$run_name" == *'_CANDSSASRec_'* ]]; then
+    pattern='CANDSSASRec-*.pth'
+  fi
+  find "$CKPT_DIR" -maxdepth 1 -type f -name "$pattern" 2>/dev/null | sort | tail -n 1
 }
 
 sasrec_name="${DATASET}_SASRec_h${HIDDEN_SIZE}_len${MAX_LEN}"
