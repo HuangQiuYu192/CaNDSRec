@@ -17,6 +17,9 @@ source "$CONDA_SH"
 cd "$ROOT"
 max_len_for() { [ "$1" = "LastFM-S3Rec" ] && echo 200 || echo 50; }
 batch_for() { [ "$1" = "LastFM-S3Rec" ] && echo 512 || echo 1024; }
+# Two checkpoints are simultaneously resident during the paired analysis.
+# Long LastFM histories therefore need a smaller inference batch than training.
+eval_batch_for() { [ "$1" = "LastFM-S3Rec" ] && echo 128 || echo 256; }
 
 for dataset in $DATASETS_STR; do
   for seed in $SEEDS_STR; do
@@ -30,7 +33,7 @@ for dataset in $DATASETS_STR; do
       --dataset "$dataset" --seed "$seed" --gpu_id 0 --hidden_size 256 --n_layers 2 --n_heads 2 --inner_size 1024 \
       --hidden_dropout_prob 0.5 --attn_dropout_prob 0.5 --learning_rate 0.001 \
       --max_item_list_length "$(max_len_for "$dataset")" --train_batch_size "$(batch_for "$dataset")" \
-      --eval_batch_size 512 --temperature 10 --base_checkpoint "$base" --cands_checkpoint "$both" --out "$out"
+      --eval_batch_size "$(eval_batch_for "$dataset")" --temperature 10 --base_checkpoint "$base" --cands_checkpoint "$both" --out "$out"
   done
 done
 echo ALL_DONE
