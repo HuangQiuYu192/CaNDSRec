@@ -76,7 +76,7 @@ def build_cli_for_model(model_name: str, args: argparse.Namespace) -> list[str]:
         "--show_progress",
         "False",
     ]
-    if model_name in {"SASRec", "CANDSSASRec", "AngularSmoothCANDSSASRec", "SemanticCANDSSASRec"}:
+    if model_name in {"SASRec", "CANDSSASRec", "AngularSmoothCANDSSASRec", "SemanticCANDSSASRec", "TailSimCANDSSASRec"}:
         cli.extend(["--n_heads", str(args.n_heads), "--attn_dropout_prob", str(args.attn_dropout_prob)])
     if model_name in {"WEARec", "CANDSWEARec"}:
         cli.extend(["--num_heads", str(args.wearec_num_heads), "--alpha", str(args.wearec_alpha)])

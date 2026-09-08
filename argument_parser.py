@@ -80,10 +80,20 @@ def add_cands_arguments(parser):
     parser.add_argument('--semantic_weight', default=0.1, type=float)
     parser.add_argument('--semantic_gate', default='constant', choices=['constant', 'tail', 'sqrt_tail'])
     parser.add_argument('--semantic_freeze', default=True, type=str2bool)
+    parser.add_argument('--tail_sim_weight', default=0.0, type=float)
+    parser.add_argument('--tail_sim_mode', default='off', choices=['off', 'random', 'raw', 'strict'])
+    parser.add_argument('--tail_sim_min_contexts', default=3, type=int)
+    parser.add_argument('--tail_sim_min_predecessors', default=2, type=int)
+    parser.add_argument('--tail_sim_min_history_support', default=1, type=int)
+    parser.add_argument('--tail_sim_min_edge_count', default=2, type=int)
+    parser.add_argument('--tail_sim_min_recent_concentration', default=0.5, type=float)
+    parser.add_argument('--tail_sim_score_threshold', default=1.745186, type=float)
+    parser.add_argument('--tail_sim_recent_window', default=5, type=int)
+    parser.add_argument('--tail_sim_decay', default=0.7, type=float)
 
 
 def add_model_arguments(parser, base_model, dataset):
-    if base_model in {'SASRec', 'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'SemanticCANDSSASRec', 'TailCLCalibratedCANDSSASRec'}:
+    if base_model in {'SASRec', 'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'SemanticCANDSSASRec', 'TailCLCalibratedCANDSSASRec', 'TailSimCANDSSASRec'}:
         parser.add_argument('--hidden_size', default=64, type=int)
         parser.add_argument('--n_layers', default=2, type=int)
         parser.add_argument('--n_heads', default=2, type=int)
@@ -94,7 +104,7 @@ def add_model_arguments(parser, base_model, dataset):
         parser.add_argument('--hidden_act', default='gelu', type=str)
         parser.add_argument('--layer_norm_eps', default=1e-12, type=float)
         parser.add_argument('--initializer_range', default=0.02, type=float)
-        if base_model in {'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'SemanticCANDSSASRec', 'TailCLCalibratedCANDSSASRec'}:
+        if base_model in {'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'SemanticCANDSSASRec', 'TailCLCalibratedCANDSSASRec', 'TailSimCANDSSASRec'}:
             add_cands_arguments(parser)
     elif base_model == 'GRU4Rec':
         parser.add_argument('--hidden_size', default=64, type=int)

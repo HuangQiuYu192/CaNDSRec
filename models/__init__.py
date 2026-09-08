@@ -9,6 +9,7 @@ from .LearnableTempCANDSSASRec import LearnableTempCANDSSASRec
 from .LinearItemCANDSSASRec import LinearItemCANDSSASRec
 from .SemanticCANDSSASRec import SemanticCANDSSASRec
 from .TailCLCalibratedCANDSSASRec import TailCLCalibratedCANDSSASRec
+from .TailSimCANDSSASRec import TailSimCANDSSASRec
 from .SASRec import SASRec
 from .GRU4Rec import GRU4Rec
 from .WEARec import WEARec
@@ -36,6 +37,7 @@ MODEL_DICT = {
     "LinearItemCANDSSASRec": LinearItemCANDSSASRec,
     "SemanticCANDSSASRec": SemanticCANDSSASRec,
     "TailCLCalibratedCANDSSASRec": TailCLCalibratedCANDSSASRec,
+    "TailSimCANDSSASRec": TailSimCANDSSASRec,
     "BERT4Rec": BERT4Rec,
     "CL4SRec": CL4SRec,
     "CoSeRec": CoSeRec,
