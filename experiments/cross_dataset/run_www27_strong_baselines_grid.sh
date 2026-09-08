@@ -12,6 +12,8 @@ SEEDS_STR="${SEEDS_STR:-2023 2024 2025}"
 OUT_ROOT="${OUT_ROOT:-$ROOT/log_runs/www27_strong_baselines}"
 CKPT_ROOT="${CKPT_ROOT:-$ROOT/ckpt/www27_strong_baselines}"
 RERUN="${RERUN:-false}"
+RUN_GRU="${RUN_GRU:-true}"
+RUN_BERT="${RUN_BERT:-true}"
 
 if [ ! -f "$CONDA_SH" ]; then
   echo "Missing CONDA_SH=$CONDA_SH" >&2
@@ -49,9 +51,9 @@ run_bert() {
 
 for dataset in $DATASETS_STR; do
   for seed in $SEEDS_STR; do
-    echo "START dataset=$dataset seed=$seed (GRU4Rec GPU 0; BERT4Rec GPU 1)"
-    run_gru "$dataset" "$seed" & pid_gru=$!
-    run_bert "$dataset" "$seed" & pid_bert=$!
+    echo "START dataset=$dataset seed=$seed (GRU=$RUN_GRU on GPU 0; BERT=$RUN_BERT on GPU 1)"
+    if [ "$RUN_GRU" = true ]; then run_gru "$dataset" "$seed" & else true & fi; pid_gru=$!
+    if [ "$RUN_BERT" = true ]; then run_bert "$dataset" "$seed" & else true & fi; pid_bert=$!
     wait "$pid_gru"
     wait "$pid_bert"
     echo "DONE dataset=$dataset seed=$seed"
