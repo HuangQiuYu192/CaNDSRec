@@ -1,5 +1,6 @@
 from .BERT4Rec import BERT4Rec
 from .CANDSSASRec import CANDSSASRec
+from .GeometrySASRec import GeometrySASRec
 from .AngularSmoothCANDSSASRec import AngularSmoothCANDSSASRec
 from .CANDSFMLPRec import CANDSFMLPRec
 from .CANDSWEARec import CANDSWEARec
@@ -28,6 +29,7 @@ MODEL_DICT = {
     "GRU4Rec": GRU4Rec,
     "SASRec": SASRec,
     "CANDSSASRec": CANDSSASRec,
+    "GeometrySASRec": GeometrySASRec,
     "AngularSmoothCANDSSASRec": AngularSmoothCANDSSASRec,
     "CANDSFMLPRec": CANDSFMLPRec,
     "CANDSWEARec": CANDSWEARec,

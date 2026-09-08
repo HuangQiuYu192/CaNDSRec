@@ -75,6 +75,13 @@ The sequence norm cancels, making this a candidate-side radial effect. The posit
 This proposition identifies an invariance, not a superiority theorem. If norm encodes a useful property, dot-product ranking may be preferable. The empirical role of the next sections is to determine whether this restriction helps under matched training.
 
 \subsection{Training geometry}
+The radial restriction is not merely an inference-time invariance. For the
+dot-product full-softmax loss, with $p_{uj}$ denoting the softmax probability
+and $y_{uj}=\mathbf{1}[j=i^+]$, the item gradient is
+$\nabla_{\bm e_j}\mathcal L=(p_{uj}-y_{uj})\bm h_u$. Its radial projection is
+$(p_{uj}-y_{uj})\|\bm h_u\|_2\widehat{\bm e}_j^\top\widehat{\bm h}_u$.
+Thus, except at zero angular compatibility, the matching loss can directly
+change a candidate's radius under dot-product training.
 \begin{proposition}[Tangential item gradient]
 Let $\bm z_i=\bm e_i/\|\bm e_i\|_2$ and let $\mathcal L$ be any differentiable loss that depends on $\bm e_i$ only through $\bm z_i$. Then
 \begin{equation}
@@ -85,8 +92,40 @@ Let $\bm z_i=\bm e_i/\|\bm e_i\|_2$ and let $\mathcal L$ be any differentiable l
 \begin{proof}For nonzero $\bm e$, differentiating $\bm z=\bm e/\|\bm e\|_2$ gives the Jacobian $\|\bm e\|_2^{-1}(\bm I-\bm z\bm z^\top)$. Applying the chain rule yields the first equality. The matrix in parentheses is an orthogonal projection onto the tangent space of the unit sphere, hence it annihilates $\bm z$. Since $\bm e=\|\bm e\|_2\bm z$, the inner product with $\nabla_{\bm e_i}\mathcal L$ is zero.\end{proof}
 Equation~\ref{eq:tangent} states a concrete optimization distinction: the final matching loss updates an item's direction but has no direct radial component. The $1/\|\bm e_i\|_2$ factor also changes the scale of the directional update in the unconstrained parameterization. Dot-product training has neither restriction. This does not guarantee higher metrics, because radius can contain useful information and other loss terms or optimizers can still move norms indirectly. Mechanism diagnostics and matched endpoint tests are therefore both necessary.
 
+\begin{proposition}[Cosine-logit capacity]
+For a catalogue of $M$ items and temperature-scaled cosine logits
+$\ell_{ui}\in[-\tau,\tau]$, the per-example full-softmax cross-entropy loss
+is bounded below by
+\begin{equation}
+\mathcal L_{u}\geq \log\!\left(1+(M-1)e^{-2\tau}\right).\label{eq:logitbound}
+\end{equation}
+\end{proposition}
+\begin{proof}
+The positive logit cannot exceed $\tau$, while every negative logit is at
+least $-\tau$. The largest attainable positive softmax probability is therefore
+$[1+(M-1)e^{-2\tau}]^{-1}$. Taking its negative logarithm gives
+Eq.~\ref{eq:logitbound}.
+\end{proof}
+This bound makes the role of temperature explicit. Unit normalization removes
+candidate-specific radial scale, but it also bounds all logit gaps by $2\tau$.
+The global temperature is consequently required to provide sufficient
+full-catalogue discrimination; it is not a substitute for item-specific norms
+and it cannot alter a fixed user's cosine ordering.
+
 \subsection{Falsifiable checkpoint diagnostics}
 We use three diagnostics, each answering a different question. First, the Spearman correlation $\rho(\|\bm e_i\|_2,\mathrm{pop}(i))$ describes whether learned item norms are associated with training interactions; it is not an exposure metric or a causal estimate. Second, for every test example we identify the strongest dot-product competitor and define directional displacement as the fraction for which $c_t>c_p>0$ but the competitor ranks above the target under the dot product. This statistic is directly tied to Eq.~\ref{eq:reversal}. Third, we recompute ranks after replacing dot scores with cosine scores inside the same checkpoint. The history, test target, candidate catalogue, and masking remain fixed. This counterfactual isolates a score change, whereas the endpoint comparison isolates the effect of retraining with the altered geometry. Agreement is informative; disagreement is equally informative because it reveals an optimization effect that a post-hoc re-ranker cannot reproduce.
+
+\paragraph{Pre-specified decomposition tests.}
+The analysis yields two predictions that can be falsified without introducing a
+new encoder. First, the radial-gradient energy of the final matching loss
+should be nonzero for dot-product SASRec and numerically zero for CaNDS, while
+the tangential component remains. Second, one-sided normalizations should not
+be treated as interchangeable with CaNDS: normalizing items removes
+candidate-side radius from an ordering, whereas normalizing sequence states
+principally changes training-time logit scale. We test dot-product SASRec,
+sequence-only normalization, item-only normalization, and joint normalization
+under matched seeds and a dot-product weight-decay control. The control tests
+the rival explanation that any gain is simply caused by shrinking embeddings.
 
 \section{Experimental Protocol}
 \subsection{Data and evaluation split}
@@ -169,7 +208,7 @@ Toys&\sasrec{}&-.709&.0084&-.0019\\
 \end{tabular}}\end{table}
 
 \subsection{Sensitivity and failure modes}
-The current evidence fixes $\tau=10$ and $d=256$ to isolate scoring geometry. This choice is intentionally not presented as a universal optimum. A temperature/width sweep, alternative encoders, and user-level paired bootstrap intervals remain necessary before a broad generalization claim. The matched seeds do nevertheless identify two concrete failure modes. First, a post-hoc cosine replacement can fail even when retraining with directional calibration helps; score-time intervention and training-time intervention must therefore not be used as synonyms. Second, tail NDCG can decrease even when aggregate Recall and NDCG improve. A practitioner seeking tail coverage should use a method that introduces tail-specific evidence, objectives, or constraints rather than treating normalization as a substitute for them.
+The current evidence fixes $\tau=10$ and $d=256$ to isolate scoring geometry. This choice is intentionally not presented as a universal optimum. The one-seed temperature diagnostic on each Amazon domain selects $\tau=10$ from $\{5,10,20\}$, but it is not used to make a universal temperature claim; all final choices must remain validation-only. We additionally pre-specify two lightweight external checks on LastFM and Yelp: the score-geometry decomposition above and a one-seed matched endpoint/diagnostic run. These checks assess whether the proposed radial mechanism is visible beyond short Amazon purchase histories, not whether CaNDS dominates an expanded SOTA benchmark. The matched seeds do nevertheless identify two concrete failure modes. First, a post-hoc cosine replacement can fail even when retraining with directional calibration helps; score-time intervention and training-time intervention must therefore not be used as synonyms. Second, tail NDCG can decrease even when aggregate Recall and NDCG improve. A practitioner seeking tail coverage should use a method that introduces tail-specific evidence, objectives, or constraints rather than treating normalization as a substitute for them.
 
 \section{Discussion, Limitations, and Ethics}
 The central interpretation of this study is narrower than a generic claim for cosine similarity. The endpoint results, per-seed agreement, and fixed-state diagnostics jointly support an optimization-geometry explanation for the observed aggregate gain. They do not show that a norm is a nuisance variable in every recommender. A norm--frequency association is descriptive and can reflect utility, age, data collection, or other unobserved factors. In fact, the negative norm--popularity correlations in Table~\ref{tab:mechanism} are evidence against a convenient but unsupported causal story in which head items simply grow large norms.
