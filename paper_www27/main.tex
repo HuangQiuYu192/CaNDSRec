@@ -31,23 +31,50 @@ s_{ui}=\underbrace{\|\bm h_u\|\|\bm e_i\|}_{\text{radial scale}}\underbrace{\wid
 \end{equation}
 An item norm thus multiplies every user's score. Norms may encode useful information, and their association with frequency is an empirical question rather than a presupposition. Popularity can affect accuracy, exposure, and learned ranking~\cite{steck2011popularity,abdollahpouri2017controlling}.
 
-We ask a narrow, falsifiable question: when does radial scale reverse a ranking that directional similarity would prefer? \cands{} removes item-specific radial scale from the final score while retaining one global temperature. It adds no side information, agent, synthetic interaction, or trainable parameter. Since independently trained models cannot isolate geometry from optimization, we additionally evaluate score changes within a fixed checkpoint.
+This decomposition matters in sequential recommendation because a next-item score has two conceptually different roles. Its angle answers whether a history and an item point in compatible directions; its radius changes the score scale of the item for every history. A dot-product model is free to use both. This flexibility can be useful, but it also makes it difficult to tell whether an observed ranking follows sequence--item compatibility or a candidate-side scale factor. Existing long-tail motivation alone does not settle this question: a rare item can have a large or small norm, and a frequent item can be well or poorly aligned with a particular sequence. We therefore avoid assuming a particular norm--popularity direction.
+
+We ask a narrow, falsifiable question: when does radial scale reverse a ranking that directional similarity would prefer, and does eliminating this degree of freedom improve a trained sequential recommender? \cands{} removes item-specific radial scale from the final score while retaining one global temperature. It adds no side information, agent, synthetic interaction, or trainable parameter. Since independently trained models cannot isolate geometry from optimization, we additionally evaluate score changes within a fixed checkpoint.
+
+Our contribution is an evidence-driven study rather than a claim that cosine scoring universally fixes long-tail recommendation:
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+\item We formulate directional calibration for sequential ranking, derive an exact pairwise rank-reversal condition, and show that normalized training produces tangential item gradients.
+\item We introduce checkpoint-level diagnostics that separate score counterfactuals from retrained endpoint effects: directional displacement, norm--popularity association, and dot--cosine rank changes.
+\item We conduct three matched-seed full-sort evaluations on Beauty, Sports, and Toys. The gains are consistent overall and concentrated on head and mid targets, while the tail boundary is reported explicitly rather than hidden in an aggregate metric.
+\end{itemize}
+
+This framing is deliberately conservative. It makes the method easy to reproduce and makes a negative tail result informative: if normalization improves the aggregate ranking but not tail NDCG, the remaining limitation is not addressed by a change of scoring geometry alone.
 
 \section{Related Work}
-Sequential architectures improve how histories are represented~\cite{hidasi2016gru4rec,kang2018sasrec,sun2019bert4rec}; our question is orthogonal: what geometry should compare the resulting state to all items? Existing popularity-aware work controls frequency effects in ranking~\cite{steck2011popularity,abdollahpouri2017controlling}. We test a representation-level route in which candidate radius can multiply a dot-product score despite a target having stronger angular compatibility. Normalized embeddings make angular relations explicit~\cite{wang2017normface,davidson2018hyperspherical}; here normalization is a testable sequential ranking restriction rather than a universal remedy.
+\subsection{Sequential next-item models}
+Sequential models improve the state constructed from an interaction prefix. GRU4Rec uses recurrent updates~\cite{hidasi2016gru4rec}, SASRec uses causal self-attention~\cite{kang2018sasrec}, and BERT4Rec uses a masked-item objective~\cite{sun2019bert4rec}. These models mainly differ in how they encode order, recency, and dependencies in the history. In contrast, this paper holds the encoder family fixed and asks what geometry should compare its resulting state with the candidate catalogue. This distinction is important for attribution: a gain caused by a new history encoder is not evidence about the final scoring rule, and a scoring change should be tested without changing the data split or candidate universe.
+
+\subsection{Normalized representations and metric geometry}
+Unit-normalized representations have been used to make angular relations explicit in classification and representation learning~\cite{wang2017normface,davidson2018hyperspherical}. Their appeal is not that norms are intrinsically harmful; instead, they impose a modeling restriction that separates direction from scale. In a sequential recommender, the same restriction removes the ability of an item radius to multiply scores across users. Our analysis extends this observation in two ways: Eq.~\ref{eq:reversal} identifies the precise ranking event affected by radial scale, and Eq.~\ref{eq:tangent} characterizes the corresponding training geometry. We consequently evaluate both a fixed-checkpoint score counterfactual and a retrained endpoint, which should not be conflated.
+
+\subsection{Popularity, long-tail ranking, and calibration}
+Popularity-aware recommendation studies show that frequency can influence accuracy, exposure, and recommendation distributions~\cite{steck2011popularity,abdollahpouri2017controlling}. Such work motivates careful group evaluation, but it does not imply that an embedding norm always tracks popularity or that removing norms must help rare targets. We use training-only global item tertiles to make this distinction measurable. \cands{} is thus not presented as a popularity penalty, exposure controller, or semantic tail-augmentation method. It is a calibration of the final matching geometry whose long-tail consequences must be measured rather than assumed.
 
 \section{Method and Analysis}
-For prefix $\bm x_u=(i_1,\ldots,i_L)$, an encoder produces $\bm h_u=f_\theta(\bm x_u)$. For positive next item $i^+$, \cands{} uses
+\subsection{Task and directional calibration}
+Let $\mathcal I$ denote the catalogue and let $\bm x_u=(i_1,\ldots,i_L)$ be a chronological prefix for user $u$. A causal sequential encoder $f_\theta$ maps the prefix to $\bm h_u\in\mathbb R^d$, and each item $i$ has an embedding $\bm e_i\in\mathbb R^d$. The conventional full-sort score is $s_{ui}=\bm h_u^\top\bm e_i$. \cands{} replaces it by a temperature-scaled cosine score. For positive next item $i^+$, it uses
 \begin{equation}
 \ell_{ui}=\tau\widehat{\bm h}_u^\top\widehat{\bm e}_i,\qquad \mathcal L=-\log\frac{\exp(\ell_{ui^+})}{\sum_{j\in\mathcal I}\exp(\ell_{uj})}.\label{eq:cands}
 \end{equation}
-The global $\tau>0$ controls likelihood concentration and gradient scale but cannot change within-user item ordering. For target $t$ and competitor $p$, set $c_t=\widehat{\bm h}_u^\top\widehat{\bm e}_t$ and $c_p=\widehat{\bm h}_u^\top\widehat{\bm e}_p$. If $c_t>c_p>0$, directional scoring chooses $t$ but the dot product chooses $p$ exactly when
+Here $\widehat{\bm v}=\bm v/(\|\bm v\|_2+\epsilon)$; $\epsilon$ is only a numerical safeguard. The scalar $\tau>0$ controls softmax concentration and the magnitude of the logit gradient, but it cannot change a within-user ordering because it is shared by all candidates. The method therefore changes neither the history encoder, item identities, sequence length, nor the test-time complexity: full-sort prediction remains one matrix multiplication against the item table.
+
+The implementation supports the same pointwise cross-entropy objective as the SASRec baseline and normalizes the sequence output and the entire item embedding table at each scoring call. It can also be used with the sampled negative objective already supported by the base implementation; the reported experiments use the matched configuration of the baseline. This detail matters because normalization is applied in both training and inference. A test-time cosine re-ranker is a different intervention and is evaluated separately below.
+
+\subsection{Pairwise radial rank reversal}
+For target $t$ and competitor $p$, set $c_t=\widehat{\bm h}_u^\top\widehat{\bm e}_t$ and $c_p=\widehat{\bm h}_u^\top\widehat{\bm e}_p$. If $c_t>c_p>0$, directional scoring chooses $t$ but the dot product chooses $p$ exactly when
 \begin{equation}
 \frac{\|\bm e_p\|_2}{\|\bm e_t\|_2}>\frac{c_t}{c_p}.\label{eq:reversal}
 \end{equation}
-The sequence norm cancels, making this a candidate-side radial effect.
+The sequence norm cancels, making this a candidate-side radial effect. The positive-angle condition is deliberate: Eq.~\ref{eq:reversal} describes an intuitive competition in which both candidates are compatible with the current history but one is more compatible directionally. If either cosine is non-positive, a radial ratio can still affect a dot-product ordering, but the ratio form is no longer the most informative diagnostic. Our empirical displacement statistic records the former case only and consequently has a precise interpretation.
 \begin{proposition}For nonzero representations, \cands{} ranks $t$ above $p$ if and only if $c_t>c_p$, and this order is invariant to independent positive rescaling of the sequence and item vectors.\end{proposition}
-\begin{proof}Equation~\ref{eq:cands} is the positive constant $\tau$ times $c_i$; normalization removes every positive radial multiplier.\end{proof}
+\begin{proof}Equation~\ref{eq:cands} is the positive constant $\tau$ times $c_i$. Replacing either vector by a positive multiple leaves its unit vector unchanged. Thus the score difference has the same sign as $c_t-c_p$, independently of all positive radii.\end{proof}
+This proposition identifies an invariance, not a superiority theorem. If norm encodes a useful property, dot-product ranking may be preferable. The empirical role of the next sections is to determine whether this restriction helps under matched training.
+
+\subsection{Training geometry}
 \begin{proposition}[Tangential item gradient]
 Let $\bm z_i=\bm e_i/\|\bm e_i\|_2$ and let $\mathcal L$ be any differentiable loss that depends on $\bm e_i$ only through $\bm z_i$. Then
 \begin{equation}
@@ -55,19 +82,39 @@ Let $\bm z_i=\bm e_i/\|\bm e_i\|_2$ and let $\mathcal L$ be any differentiable l
 \qquad \bm e_i^\top\nabla_{\bm e_i}\mathcal L=0.\label{eq:tangent}
 \end{equation}
 \end{proposition}
-\begin{proof}The Jacobian of $\bm e/\|\bm e\|_2$ is $\|\bm e\|_2^{-1}(\bm I-\bm z\bm z^\top)$. Its projection matrix annihilates $\bm z$, which is collinear with $\bm e$.\end{proof}
-Equation~\ref{eq:tangent} states a concrete optimization distinction: the final matching loss updates an item's direction but has no direct radial component. Dot-product training has no such restriction. This does not guarantee higher metrics, because radius can contain useful information; mechanism diagnostics and matched endpoint tests are therefore both necessary.
+\begin{proof}For nonzero $\bm e$, differentiating $\bm z=\bm e/\|\bm e\|_2$ gives the Jacobian $\|\bm e\|_2^{-1}(\bm I-\bm z\bm z^\top)$. Applying the chain rule yields the first equality. The matrix in parentheses is an orthogonal projection onto the tangent space of the unit sphere, hence it annihilates $\bm z$. Since $\bm e=\|\bm e\|_2\bm z$, the inner product with $\nabla_{\bm e_i}\mathcal L$ is zero.\end{proof}
+Equation~\ref{eq:tangent} states a concrete optimization distinction: the final matching loss updates an item's direction but has no direct radial component. The $1/\|\bm e_i\|_2$ factor also changes the scale of the directional update in the unconstrained parameterization. Dot-product training has neither restriction. This does not guarantee higher metrics, because radius can contain useful information and other loss terms or optimizers can still move norms indirectly. Mechanism diagnostics and matched endpoint tests are therefore both necessary.
+
+\subsection{Falsifiable checkpoint diagnostics}
+We use three diagnostics, each answering a different question. First, the Spearman correlation $\rho(\|\bm e_i\|_2,\mathrm{pop}(i))$ describes whether learned item norms are associated with training interactions; it is not an exposure metric or a causal estimate. Second, for every test example we identify the strongest dot-product competitor and define directional displacement as the fraction for which $c_t>c_p>0$ but the competitor ranks above the target under the dot product. This statistic is directly tied to Eq.~\ref{eq:reversal}. Third, we recompute ranks after replacing dot scores with cosine scores inside the same checkpoint. The history, test target, candidate catalogue, and masking remain fixed. This counterfactual isolates a score change, whereas the endpoint comparison isolates the effect of retraining with the altered geometry. Agreement is informative; disagreement is equally informative because it reveals an optimization effect that a post-hoc re-ranker cannot reproduce.
 
 \section{Experimental Protocol}
-We process Amazon Beauty, Sports, and Toys into chronological sequences. Validation and test use leave-one-out targets. Head, mid, and tail are equal-sized partitions of active items sorted by \emph{training} interaction count, preventing test leakage. We report full-sort Recall and NDCG at $\{5,10,20,50,100\}$ overall and by target group.
+\subsection{Data and evaluation split}
+We process Amazon Beauty, Sports, and Toys into chronological user sequences. For every eligible user, the latest interaction is held out for test and the preceding interaction for validation; all earlier interactions form training prefixes. Table~\ref{tab:data} describes the processed data. The three domains differ in catalogue size, density, and maximum observed sequence length, so a result that repeats across them is less likely to be a single-catalogue artifact.
+\begin{table}[t]
+\caption{Processed chronological datasets. Interactions include the full sequence before leave-one-out splitting.}\label{tab:data}
+\centering\scriptsize
+\begin{tabular}{lrrrrr}\toprule
+Dataset&Users&Items&Interactions&Density&Avg. length\\\midrule
+Beauty&22,363&12,101&198,502&.000734&8.88\\
+Sports&35,598&18,357&296,337&.000453&8.32\\
+Toys&19,412&11,924&167,597&.000724&8.63\\\bottomrule
+\end{tabular}
+\end{table}
 
-\sasrec{} and \cands{} share architecture, split, optimizer, batch size, early stopping, and seed. The base setup has two layers, 256 hidden units, two heads, inner size 1024, maximum length 50, and fixed $\tau=10$. Three matched seeds provide means, standard deviations, paired seed deltas, and the fraction of positive deltas. No test metric is used to select a checkpoint or alter a completed run.
+We evaluate by full-sort ranking over the complete catalogue after masking observed training items according to the standard sequential-evaluation protocol. For a target rank $r_u$, $\mathrm{Recall@}K=\frac{1}{|\mathcal U|}\sum_u\mathbb{1}[r_u\leq K]$ and $\mathrm{NDCG@}K=\frac{1}{|\mathcal U|}\sum_u\mathbb{1}[r_u\leq K]/\log_2(r_u+1)$. We report both metrics at cutoffs $5$, $10$, $20$, $50$, and $100$, using NDCG@10 as the primary compact metric in the main tables. Head, mid, and tail are global, training-only partitions of active items sorted by training interaction count. The groups contain equal numbers of \emph{items}, not equal numbers of test examples; this prevents test leakage and avoids changing a target's group according to the test split.
 
-For each fixed test state, our diagnostic masks histories identically and ranks candidates by dot product and cosine. It records the strongest dot-product competitor, its norm and group, angular margin, norm ratio, and whether the target is directionally preferred but dot-displaced. This is a scoring counterfactual, not a causal claim about retraining. We separately test the tangential-gradient prediction by comparing norm--popularity association and norm distributions after matched training.
+\subsection{Matched comparison}
+\sasrec{} and \cands{} share architecture, chronological split, optimizer, batch size, early stopping rule, and random seed. The base setup has two Transformer layers, 256 hidden units, two attention heads, inner size 1024, maximum history length 50, and fixed $\tau=10$. The only intended method difference is the scoring geometry in Eq.~\ref{eq:cands}. Three seeds (2023, 2024, and 2025) are matched one-to-one. We report their mean and standard deviation, paired seed deltas, and the fraction of positive deltas. A checkpoint is selected by the validation procedure of its own run; the test set is never used to choose a checkpoint, temperature, or reported seed.
+
+The comparison is intentionally narrow. It establishes whether directional calibration improves a strong self-attentive baseline under controlled conditions; it does not establish dominance over every recent sequential model. We state this scope because changing the encoder, negative-sampling regime, or preprocessing while changing the score geometry would make an apparent gain hard to interpret.
+
+\subsection{Mechanism protocol and reproducibility}
+For each fixed test state, our diagnostic masks histories identically and ranks candidates by dot product and cosine. It records the strongest dot-product competitor, its norm and group, angular margin, norm ratio, and whether the target is directionally preferred but dot-displaced. This is a scoring counterfactual, not a causal claim about retraining. We separately test the tangential-gradient prediction by comparing norm--popularity association and norm distributions after matched training. Every endpoint record stores the dataset, seed, checkpoint path, and command; the released scripts separate matched training, global-tertile group evaluation, and directional diagnosis. This separation is important because it prevents an analysis script from silently altering a completed experimental result.
 
 \section{Results and Analysis}
 \subsection{Matched endpoint evaluation}
-Table~\ref{tab:main} reports full-sort test performance. \cands{} improves both cutoffs on all three datasets and has a positive overall NDCG@10 delta in all nine matched seed pairs. The largest relative NDCG@10 improvement is on Sports ($34.8\%$); the smallest is still $16.9\%$ on Beauty.
+Table~\ref{tab:main} reports full-sort test performance. \cands{} improves both cutoffs on all three datasets and has a positive overall NDCG@10 delta in all nine matched seed pairs. The largest relative NDCG@10 improvement is on Sports ($34.8\%$); the smallest is still $16.9\%$ on Beauty. The effect is not confined to one cutoff: R@50 increases by .0252, .0197, and .0412 on Beauty, Sports, and Toys, respectively. The concurrent R@10 and R@50 increases indicate that the change improves both early retrieval and a broader candidate prefix, rather than merely moving already retrieved targets within the top ten.
 \begin{table}[t]\caption{Full-sort matched-seed evaluation (mean $\pm$ standard deviation over three seeds).}\label{tab:main}\centering\scriptsize
 \resizebox{\columnwidth}{!}{\begin{tabular}{llrrrr}\toprule
 Dataset&Model&R@10&N@10&R@50&N@50\\\midrule
@@ -79,7 +126,26 @@ Toys&\sasrec{}&.0749 $\pm$ .0048&.0411 $\pm$ .0003&.1507 $\pm$ .0102&.0575 $\pm$
 &\cands{}&\textbf{.0955 $\pm$ .0024}&\textbf{.0495 $\pm$ .0013}&\textbf{.1920 $\pm$ .0045}&\textbf{.0706 $\pm$ .0008}\\\bottomrule
 \end{tabular}}\end{table}
 
-\paragraph{Long-tail boundary.} The result is not a universal long-tail gain. At NDCG@10, the matched tail delta is $-0.0024$ on Beauty, $-0.0012$ on Sports, and $-0.0027$ on Toys. Tail Recall@10 is mixed (Beauty $-0.0011$, Sports $-0.0022$, Toys $+0.0061$). Thus the evidence supports improved overall sequential ranking, especially head and mid targets, but does not support a claim that normalization alone solves tail recommendation.
+\subsection{Target-frequency decomposition}
+The aggregate improvement has a clear target-frequency structure. Table~\ref{tab:groupdelta} shows mean matched deltas. For head targets, \cands{} improves NDCG@10 by .0117, .0120, and .0153 on Beauty, Sports, and Toys. The mid group also improves consistently, by .0029, .0030, and .0065. These results explain why the aggregate gain persists across seeds: the improvements occur in groups contributing a large share of the observed next-item targets, not in a single outlying seed.
+\begin{table}[t]
+\caption{Matched \cands{}--\sasrec{} deltas by target group (mean over three seeds). Positive rates are the fraction of seeds with a positive NDCG@10 delta.}\label{tab:groupdelta}
+\centering\scriptsize
+\begin{tabular}{llrrr}\toprule
+Dataset&Group&$\Delta$R@10&$\Delta$N@10&Positive rate\\\midrule
+Beauty&Head&+.0167&+.0117&3/3\\
+&Mid&+.0073&+.0029&3/3\\
+&Tail&-.0011&-.0024&1/3\\
+Sports&Head&+.0189&+.0120&3/3\\
+&Mid&+.0070&+.0030&3/3\\
+&Tail&-.0022&-.0012&0/3\\
+Toys&Head&+.0305&+.0153&3/3\\
+&Mid&+.0166&+.0065&3/3\\
+&Tail&+.0061&-.0027&0/3\\\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Long-tail boundary.} The result is not a universal long-tail gain. At NDCG@10, the matched tail delta is $-0.0024$ on Beauty, $-0.0012$ on Sports, and $-0.0027$ on Toys. Tail Recall@10 is mixed (Beauty $-0.0011$, Sports $-0.0022$, Toys $+0.0061$). In particular, the Toys tail result illustrates why Recall and NDCG should both be reported: more targets enter the top ten, but their rank positions do not improve enough to raise discounted gain. Thus the evidence supports improved overall sequential ranking, especially head and mid targets, but does not support a claim that normalization alone solves tail recommendation.
 \begin{table}[t]\caption{Tail-target results under global training-popularity item tertiles (mean $\pm$ standard deviation, three seeds). The table makes the long-tail boundary explicit.}\label{tab:tail}\centering\scriptsize
 \resizebox{\columnwidth}{!}{\begin{tabular}{lrrrr}\toprule
 Dataset&SASRec R@10&CaNDS R@10&SASRec N@10&CaNDS N@10\\\midrule
@@ -89,7 +155,9 @@ Toys&.0461 $\pm$ .0037&.0522 $\pm$ .0012&.0266 $\pm$ .0006&.0238 $\pm$ .0021\\\b
 \end{tabular}}\end{table}
 
 \subsection{Mechanism evidence}
-We report three distinct quantities: norm--popularity association, fixed-state rank change after radial removal, and retrained endpoint metrics. SASRec norms are negatively associated with popularity ($\rho\in[-.843,-.709]$), while the association is substantially weaker after \cands{} training ($\rho\in[-.258,-.157]$). This direction is the opposite of a simplistic ``large-norm head item'' explanation. Moreover, replacing dot scores by cosine after SASRec training changes overall R@10 by only $[-.0028,-.0006]$, whereas cosine is the coherent score for \cands{} checkpoints. The endpoint gains therefore align more closely with the tangential training geometry in Eq.~\ref{eq:tangent} than with post-hoc re-ranking.
+We report three distinct quantities: norm--popularity association, fixed-state rank change after radial removal, and retrained endpoint metrics. SASRec norms are negatively associated with popularity ($\rho\in[-.843,-.709]$), while the association is substantially weaker after \cands{} training ($\rho\in[-.258,-.157]$). This direction is the opposite of a simplistic ``large-norm head item'' explanation: the result cannot be explained by saying that popular candidates merely obtain larger radii and crowd out tails.
+
+The fixed-state counterfactual is deliberately weaker than a retraining comparison. Replacing dot scores by cosine after SASRec training changes overall R@10 by only $[-.0028,-.0006]$. In contrast, the cosine score is coherent with a \cands{} checkpoint and yields positive R@10 differences of .0067, .0052, and .0059 relative to its dot-score counterfactual. The two findings together rule out the simplistic interpretation that a cosine re-ranker is sufficient. They are consistent with the tangential training geometry in Eq.~\ref{eq:tangent}: learning under the restricted score class changes the directions that are available at inference.
 \begin{table}[t]\caption{Within-checkpoint diagnostics, averaged over three seeds. Displacement is the rate at which a directionally preferred target loses to the strongest dot-product competitor.}\label{tab:mechanism}\centering\scriptsize
 \resizebox{\columnwidth}{!}{\begin{tabular}{llrrr}\toprule Dataset&Model&$\rho(\|e\|,pop)$&Displacement&$\Delta$R@10 cos--dot\\\midrule
 Beauty&\sasrec{}&-.751&.0074&-.0028\\
@@ -101,13 +169,19 @@ Toys&\sasrec{}&-.709&.0084&-.0019\\
 \end{tabular}}\end{table}
 
 \subsection{Sensitivity and failure modes}
-The current evidence fixes $\tau=10$ and $d=256$ to isolate scoring geometry. A temperature/width sweep, alternative encoders, and user-level paired bootstrap intervals remain necessary before a broad generalization claim. The intervention may help through an optimization effect even when a post-hoc cosine replacement does not improve a fixed dot-product checkpoint. It is not a universal tail correction or a substitute for missing item semantics.
+The current evidence fixes $\tau=10$ and $d=256$ to isolate scoring geometry. This choice is intentionally not presented as a universal optimum. A temperature/width sweep, alternative encoders, and user-level paired bootstrap intervals remain necessary before a broad generalization claim. The matched seeds do nevertheless identify two concrete failure modes. First, a post-hoc cosine replacement can fail even when retraining with directional calibration helps; score-time intervention and training-time intervention must therefore not be used as synonyms. Second, tail NDCG can decrease even when aggregate Recall and NDCG improve. A practitioner seeking tail coverage should use a method that introduces tail-specific evidence, objectives, or constraints rather than treating normalization as a substitute for them.
 
 \section{Discussion, Limitations, and Ethics}
-\cands{} neither reconstructs missing tail evidence nor guarantees exposure. A norm--frequency association is descriptive and can reflect utility, age, or data collection. The fixed-checkpoint comparison controls state and candidate directions but cannot identify a causal data-generation process. We use anonymous public interaction IDs, no sensitive attributes, no review text, and no synthetic behavior. Data redistribution follows original source terms; deployment would require coverage and stakeholder analyses beyond offline accuracy.
+The central interpretation of this study is narrower than a generic claim for cosine similarity. The endpoint results, per-seed agreement, and fixed-state diagnostics jointly support an optimization-geometry explanation for the observed aggregate gain. They do not show that a norm is a nuisance variable in every recommender. A norm--frequency association is descriptive and can reflect utility, age, data collection, or other unobserved factors. In fact, the negative norm--popularity correlations in Table~\ref{tab:mechanism} are evidence against a convenient but unsupported causal story in which head items simply grow large norms.
+
+The long-tail result provides a second boundary. \cands{} neither reconstructs missing tail evidence nor guarantees tail exposure. Items with few interactions may need additional information, such as content, graph structure, uncertainty estimates, or explicitly constrained objectives; none is supplied by directional calibration. The appropriate practical role of \cands{} is therefore as a low-complexity scoring baseline or component whose overall benefit must be weighed against a separate tail objective, not as a replacement for a tail-recommendation method.
+
+There are also threats to validity. The fixed-checkpoint comparison controls the sequence state, history mask, examples, and candidate universe but cannot identify a causal data-generation process. The current study uses one encoder family, three Amazon domains, fixed hidden width, and a fixed temperature. It reports variation over matched seeds rather than user-level bootstrap intervals. These design choices make the present attribution cleaner but limit external generalization. A submission-ready extension should test more encoder families and public benchmarks, tune temperature on validation only, and add a paired user-level uncertainty analysis.
+
+We use anonymous public interaction IDs, no sensitive attributes, no review text, and no synthetic behavior. Data redistribution follows the original source terms. Offline relevance metrics do not measure marketplace exposure, seller impact, or user welfare; any deployment would require coverage, fairness, and stakeholder analyses beyond the scope of this study.
 
 \section{Conclusion}
-Directional calibration replaces item-specific radial scale by shared temperature-controlled angular compatibility. Across three datasets and nine matched seed pairs, it improves overall full-sort ranking reliably, but it does not consistently improve tail NDCG@10. The strongest supported interpretation is therefore an optimization-geometry benefit for overall sequential ranking, with a clearly delimited long-tail boundary.
+Directional calibration replaces item-specific radial scale by shared temperature-controlled angular compatibility. We derived the rank-reversal condition that this restriction targets, established its tangential item-gradient geometry, and evaluated it with matched endpoints and checkpoint-level counterfactuals. Across three datasets and nine matched seed pairs, \cands{} improves overall full-sort ranking reliably, but it does not consistently improve tail NDCG@10. The strongest supported interpretation is therefore an optimization-geometry benefit for overall sequential ranking, with a clearly delimited long-tail boundary. This evidence-based framing is intended to make subsequent work more diagnostic: improvements can be attributed to representation geometry, while remaining tail failures point to the need for missing evidence rather than another untested score transformation.
 \appendix
 \section{Per-seed Endpoint Results}
 Table~\ref{tab:perseed} reports the unaggregated test metrics behind Table~\ref{tab:main}. It shows that each of the nine matched seed pairs has a positive overall NDCG@10 difference, rather than the aggregate being driven by one outlying run.
@@ -124,6 +198,7 @@ Toys&2023&.0412&.0482\\Toys&2024&.0414&.0508\\Toys&2025&.0408&.0495\\\bottomrule
 \item Both counterfactual scores share checkpoint, history mask, examples, and candidate universe.
 \item Every endpoint row records data version, seed, checkpoint, and command.
 \item Reported uncertainty is across matched seeds; no user-level bootstrap interval is claimed in this version.
+\item The matched-grid shell script launches paired training; the paper-evaluation shell script launches group and diagnostic analyses; the aggregation Python script produces the reported seed summaries.
 \end{enumerate}
 \bibliographystyle{ACM-Reference-Format}\bibliography{references}
 \end{document}
