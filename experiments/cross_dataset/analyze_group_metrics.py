@@ -132,11 +132,32 @@ def build_model(model_name: str, checkpoint: str, args: argparse.Namespace):
     return config, dataset, train_data, valid_data, test_data, model
 
 
-def target_groups(items: np.ndarray, pop: np.ndarray) -> dict[str, np.ndarray]:
+def target_quantile_groups(items: np.ndarray, pop: np.ndarray) -> dict[str, np.ndarray]:
     order = np.argsort(-pop[items], kind="stable")
     groups = {"all": np.arange(len(items))}
     groups.update({name: idx for name, idx in zip(["head", "mid", "tail"], np.array_split(order, 3))})
     return groups
+
+
+def global_item_tertile_groups(items: np.ndarray, pop: np.ndarray) -> dict[str, np.ndarray]:
+    """Group test examples by their target's training-popularity item tertile.
+
+    Unlike target quantiles, this first partitions unique active items and then
+    maps every test target to its item's membership.  Group sizes are therefore
+    intentionally unequal: that is the expected consequence of popularity.
+    """
+    active = np.flatnonzero(pop > 0)
+    active = active[active != 0]
+    order = active[np.argsort(-pop[active], kind="stable")]
+    labels = np.full(len(pop), -1, dtype=np.int8)
+    for label, part in enumerate(np.array_split(order, 3)):
+        labels[part] = label
+    return {
+        "all": np.arange(len(items)),
+        "head": np.flatnonzero(labels[items] == 0),
+        "mid": np.flatnonzero(labels[items] == 1),
+        "tail": np.flatnonzero(labels[items] == 2),
+    }
 
 
 def metric_at(ranks: np.ndarray, k: int) -> tuple[float, float]:
@@ -173,9 +194,13 @@ def collect_eval(model, eval_data, max_batches: int | None = None) -> dict[str, 
     return {key: np.asarray(value) for key, value in output.items()}
 
 
-def grouped_metrics(items: np.ndarray, ranks: np.ndarray, pop: np.ndarray, cutoffs: list[int]) -> list[dict]:
+def grouped_metrics(items: np.ndarray, ranks: np.ndarray, pop: np.ndarray, cutoffs: list[int], group_mode: str) -> list[dict]:
     rows = []
-    for group, idx in target_groups(items.astype(np.int64), pop).items():
+    if group_mode == "global_item_tertile":
+        groups = global_item_tertile_groups(items.astype(np.int64), pop)
+    else:
+        groups = target_quantile_groups(items.astype(np.int64), pop)
+    for group, idx in groups.items():
         group_ranks = ranks[idx]
         row = {"group": group, "n": int(len(idx))}
         for k in cutoffs:
@@ -241,6 +266,7 @@ def main() -> None:
     parser.add_argument("--semantic_gate", default="constant")
     parser.add_argument("--semantic_freeze", default=True)
     parser.add_argument("--cutoffs", default="5,10,20,50,100")
+    parser.add_argument("--group_mode", choices=["target_quantile", "global_item_tertile"], default="target_quantile")
     parser.add_argument("--max_batches", default=None, type=int)
     parser.add_argument("--out_prefix", required=True)
     args = parser.parse_args()
@@ -250,11 +276,12 @@ def main() -> None:
     pop = np.bincount(train_data.dataset.inter_feat[item_field].cpu().numpy(), minlength=dataset.item_num)
     cutoffs = parse_list(args.cutoffs, int)
     stats = collect_eval(model, test_data, args.max_batches)
-    rows = grouped_metrics(stats["items"], stats["ranks"], pop, cutoffs)
+    rows = grouped_metrics(stats["items"], stats["ranks"], pop, cutoffs, args.group_mode)
     meta = {
         "tag": args.tag or args.model,
         "dataset": args.dataset,
         "model": args.model,
+        "group_mode": args.group_mode,
         "hidden": args.hidden_size,
         "max_len": args.max_item_list_length,
         "temperature": args.temperature,
