@@ -5,6 +5,7 @@ set -euo pipefail
 # analysis at a time and honors GPU_ID, so it never claims an otherwise busy GPU.
 ROOT="${ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 CONDA_ENV="${CONDA_ENV:-recbole}"
+CONDA_SH="${CONDA_SH:-/home/ssh_user/miniconda3/etc/profile.d/conda.sh}"
 GPU_ID="${GPU_ID:-0}"
 DATASET="${DATASET:-Beauty}"
 SEED="${SEED:-2025}"
@@ -43,6 +44,13 @@ fi
 
 mkdir -p "$OUT_DIR"
 cd "$ROOT"
+if [ -f "$CONDA_SH" ]; then
+  # shellcheck source=/dev/null
+  source "$CONDA_SH"
+elif ! command -v conda >/dev/null 2>&1; then
+  echo "conda was not found; set CONDA_SH to the environment initialization script" >&2
+  exit 127
+fi
 conda run --no-capture-output -n "$CONDA_ENV" python experiments/cross_dataset/analyze_directional_calibration.py \
   --dataset "$DATASET" --gpu_id "$GPU_ID" --seed "$SEED" \
   --hidden_size "$HIDDEN_SIZE" --n_layers 2 --n_heads 2 --inner_size "$INNER_SIZE" \
