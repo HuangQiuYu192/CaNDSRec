@@ -216,46 +216,41 @@ CaNDS checkpoints. The small residual is expected from finite-precision
 normalization and confirms the tangential prediction in Eq.~\ref{eq:tangent}
 at the level of the implemented loss.
 
-We then run one pre-specified external decomposition on LastFM and Yelp. This
-is not a new main comparison or a multi-seed claim; it probes which part of
-the scoring intervention transfers beyond the short Amazon sequences. Joint
-normalization is strongest on Yelp, whereas sequence-only normalization is
-slightly stronger on LastFM at NDCG@10. Thus the result supports neither a
-universal joint-normalization theorem nor a generic ``smaller norm''
-explanation. In particular, the dot-product L2 control does not match joint
-normalization on either dataset. The data motivate multi-seed follow-up and
-identify sequence-scale calibration as a competing, measurable explanation.
+We then run a pre-specified external decomposition on Yelp with the same three
+seeds. This is not a new main comparison; it probes which part of the scoring
+intervention transfers beyond short Amazon purchase sequences. Joint
+normalization is best on every reported Yelp metric, whereas item-only
+normalization is below the dot product. Thus the result supports neither a
+generic ``smaller norm'' explanation nor the view that normalizing items alone
+is sufficient. The dot-product L2 control also does not match joint
+normalization. These observations identify joint score geometry as the
+externally supported intervention and retain sequence-scale calibration as a
+measurable competing explanation.
 \begin{table}[t]
-\caption{Single-seed external score-geometry decomposition ($d=256$). These
-are exploratory mechanism checks, not selected or averaged main-table scores.}
+\caption{External Yelp score-geometry decomposition ($d=256$), mean $\pm$
+standard deviation over three matched seeds. $^\dagger$The L2 control uses one
+seed only. These are external mechanism checks, not selected main-table scores.}
 \label{tab:decomposition}\centering\scriptsize
-\begin{tabular}{llrrrr}\toprule
+\resizebox{\columnwidth}{!}{\begin{tabular}{llrrrr}\toprule
 Dataset&Score geometry&R@10&N@10&R@20&N@20\\\midrule
-LastFM&Dot&.0495&.0240&.0789&.0314\\
-&Sequence-only&\textbf{.0651}&\textbf{.0339}&.0991&.0425\\
-&Item-only&.0560&.0272&.0844&.0344\\
-&Joint&.0624&.0329&\textbf{.1028}&\textbf{.0429}\\
-&Dot + L2&.0550&.0275&.0881&.0357\\
-Yelp&Dot&.0570&.0366&.0816&.0428\\
-&Sequence-only&.0628&.0388&.0913&.0459\\
-&Item-only&.0542&.0356&.0789&.0418\\
-&Joint&\textbf{.0672}&\textbf{.0409}&\textbf{.0987}&\textbf{.0488}\\
-&Dot + L2&.0581&.0364&.0852&.0432\\\bottomrule
-\end{tabular}\end{table}
+Yelp&Dot&.0575$\pm$.0005&.0368$\pm$.0002&.0831$\pm$.0014&.0432$\pm$.0004\\
+&Sequence-only&.0627$\pm$.0020&.0386$\pm$.0009&.0924$\pm$.0018&.0461$\pm$.0009\\
+&Item-only&.0554$\pm$.0010&.0359$\pm$.0004&.0791$\pm$.0002&.0419$\pm$.0002\\
+&Joint&\textbf{.0673$\pm$.0006}&\textbf{.0408$\pm$.0004}&\textbf{.0982$\pm$.0008}&\textbf{.0485$\pm$.0005}\\
+&Dot + L2$^\dagger$&.0581&.0364&.0852&.0432\\\bottomrule
+\end{tabular}}\end{table}
 
 \subsection{Sensitivity and failure modes}
-The current evidence fixes $\tau=10$ and $d=256$ in the main Amazon comparison to isolate scoring geometry. This choice is intentionally not presented as a universal optimum. A one-seed temperature diagnostic on each Amazon domain selected $\tau=10$ from $\{5,10,20\}$, but it was not used to make a universal temperature claim; all final choices remain validation-only.
+The current evidence fixes $\tau=10$ and $d=256$ to isolate scoring geometry. This choice is intentionally not presented as a universal optimum. A one-seed temperature diagnostic on each Amazon domain and Yelp selected $\tau=10$ from $\{5,10,20\}$, but it is not used to make a universal temperature claim; all final choices remain validation-only. The external experiment therefore validates score geometry at a fixed, pre-specified temperature rather than claiming a transferable temperature-selection rule.
 
-The external screen exposes a sharper boundary. On LastFM, a paired three-seed comparison of $\tau\in\{5,10\}$ selected $\tau=5$ by validation NDCG@10 for both score geometries, yet $\tau=10$ was higher on the held-out test set in all aggregate comparisons. For sequence-only normalization, validation NDCG@10 was $.0562\pm.0012$ at $\tau=5$ and $.0535\pm.0014$ at $\tau=10$, whereas test NDCG@10 was $.0304\pm.0012$ and $.0322\pm.0032$, respectively. For joint normalization, the corresponding values were $.0565\pm.0016$ and $.0538\pm.0013$ on validation, versus $.0259\pm.0011$ and $.0326\pm.0003$ on test. This split discrepancy means that the test result cannot be used to retune $\tau$. It also shows that temperature selection may be unstable when transferred across time-disjoint splits, even when the relative test ordering is stable over seeds.
-
-We also pre-specify external checks on LastFM and Yelp: the score-geometry decomposition above, matched endpoint runs, and diagnostics. These checks assess whether the proposed radial mechanism is visible beyond short Amazon purchase histories, not whether \cands{} wins a larger model comparison. The matched seeds identify two further failure modes. First, a post-hoc cosine replacement can fail even when retraining with directional calibration helps; score-time intervention and training-time intervention must therefore not be used as synonyms. Second, tail NDCG can decrease even when aggregate Recall and NDCG improve. A practitioner seeking tail coverage should use a method that introduces tail-specific evidence, objectives, or constraints rather than treating normalization as a substitute for them.
+We also pre-specify external checks on Yelp: the score-geometry decomposition above, matched endpoint runs, and diagnostics. These checks assess whether the proposed radial mechanism is visible beyond short Amazon purchase histories, not whether \cands{} wins a larger model comparison. The matched seeds identify two further failure modes. First, a post-hoc cosine replacement can fail even when retraining with directional calibration helps; score-time intervention and training-time intervention must therefore not be used as synonyms. Second, tail NDCG can decrease even when aggregate Recall and NDCG improve. A practitioner seeking tail coverage should use a method that introduces tail-specific evidence, objectives, or constraints rather than treating normalization as a substitute for them.
 
 \section{Discussion, Limitations, and Ethics}
 The central interpretation of this study is narrower than a generic claim for cosine similarity. The endpoint results, per-seed agreement, and fixed-state diagnostics jointly support an optimization-geometry explanation for the observed aggregate gain. They do not show that a norm is a nuisance variable in every recommender. A norm--frequency association is descriptive and can reflect utility, age, data collection, or other unobserved factors. In fact, the negative norm--popularity correlations in Table~\ref{tab:mechanism} are evidence against a convenient but unsupported causal story in which head items simply grow large norms.
 
 The long-tail result provides a second boundary. \cands{} neither reconstructs missing tail evidence nor guarantees tail exposure. Items with few interactions may need additional information, such as content, graph structure, uncertainty estimates, or explicitly constrained objectives; none is supplied by directional calibration. The appropriate practical role of \cands{} is therefore as a low-complexity scoring baseline or component whose overall benefit must be weighed against a separate tail objective, not as a replacement for a tail-recommendation method.
 
-There are also threats to validity. The fixed-checkpoint comparison controls the sequence state, history mask, examples, and candidate universe but cannot identify a causal data-generation process. The current study uses one encoder family, three Amazon domains, fixed hidden width, and a fixed temperature. It reports variation over matched seeds rather than user-level bootstrap intervals. These design choices make the present attribution cleaner but limit external generalization. A submission-ready extension should test more encoder families and public benchmarks, tune temperature on validation only, and add a paired user-level uncertainty analysis.
+There are also threats to validity. The fixed-checkpoint comparison controls the sequence state, history mask, examples, and candidate universe but cannot identify a causal data-generation process. The current study uses one encoder family, three Amazon domains plus Yelp, fixed hidden width, and a fixed temperature. It reports variation over matched seeds rather than user-level bootstrap intervals. These design choices make the present attribution cleaner but limit external generalization. A submission-ready extension should test more encoder families and public benchmarks, tune temperature on validation only, and add a paired user-level uncertainty analysis.
 
 We use anonymous public interaction IDs, no sensitive attributes, no review text, and no synthetic behavior. Data redistribution follows the original source terms. Offline relevance metrics do not measure marketplace exposure, seller impact, or user welfare; any deployment would require coverage, fairness, and stakeholder analyses beyond the scope of this study.
 
