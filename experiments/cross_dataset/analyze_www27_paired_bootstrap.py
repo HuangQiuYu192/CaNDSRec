@@ -23,6 +23,8 @@ def parse_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--base_checkpoint", required=True)
     parser.add_argument("--cands_checkpoint", required=True)
+    parser.add_argument("--base_model", default="SASRec")
+    parser.add_argument("--cands_model", default="CANDSSASRec")
     parser.add_argument("--gpu_id", type=int, default=0)
     parser.add_argument("--hidden_size", type=int, default=256)
     parser.add_argument("--n_layers", type=int, default=2)
@@ -69,16 +71,17 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parse_common_args(parser)
     args = parser.parse_args()
-    _, _, _, _, test_data, base_model = build_model("SASRec", args.base_checkpoint, args)
+    _, _, _, _, test_data, base_model = build_model(args.base_model, args.base_checkpoint, args)
     base = collect_eval(base_model, test_data)
-    _, _, _, _, test_data, cands_model = build_model("CANDSSASRec", args.cands_checkpoint, args)
+    _, _, _, _, test_data, cands_model = build_model(args.cands_model, args.cands_checkpoint, args)
     cands = collect_eval(cands_model, test_data)
     if not np.array_equal(base["items"], cands["items"]):
         raise RuntimeError("paired evaluation examples differ between checkpoints")
     rng = np.random.default_rng(args.bootstrap_seed)
     rows = [bootstrap_delta(base["ranks"], cands["ranks"], k, args.bootstrap_samples, rng) for k in (10, 20, 50)]
     for row in rows:
-        row.update({"dataset": args.dataset, "seed": args.seed, "bootstrap_samples": args.bootstrap_samples})
+        row.update({"dataset": args.dataset, "seed": args.seed, "base_model": args.base_model,
+                    "cands_model": args.cands_model, "bootstrap_samples": args.bootstrap_samples})
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     fields = list(rows[0])
