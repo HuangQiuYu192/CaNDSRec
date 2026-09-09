@@ -16,7 +16,8 @@ source "$CONDA_SH"
 cd "$ROOT"
 
 run_one() {
-  local gpu="$1" seed="$2" out="$OUT_ROOT/seed${seed}"
+  local gpu="$1" seed="$2" out
+  out="$OUT_ROOT/seed${seed}"
   local base cands
   base=$(find "$CKPT_ROOT/seed${seed}/dot" -maxdepth 1 -type f -name 'SASRec-*.pth' | head -n 1)
   cands=$(find "$CKPT_ROOT/seed${seed}/both" -maxdepth 1 -type f -name 'GeometrySASRec-*.pth' | head -n 1)
