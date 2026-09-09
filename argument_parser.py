@@ -268,7 +268,7 @@ def add_model_arguments(parser, base_model, dataset):
         parser.add_argument('--initializer_range', default=0.02, type=float)
         if base_model == 'CANDSFMLPRec':
             add_cands_arguments(parser)
-    elif base_model == 'BSARec':
+    elif base_model in {'BSARec', 'CANDSBSARec'}:
         parser.add_argument('--c', default=4, type=int)
         parser.add_argument('--alpha', default=0.5, type=float)
         parser.add_argument('--hidden_size', default=64, type=int)
@@ -281,6 +281,8 @@ def add_model_arguments(parser, base_model, dataset):
         parser.add_argument('--hidden_act', default='gelu', type=str)
         parser.add_argument('--layer_norm_eps', default=1e-12, type=float)
         parser.add_argument('--initializer_range', default=0.02, type=float)
+        if base_model == 'CANDSBSARec':
+            add_cands_arguments(parser)
     elif base_model == 'ELCRec':
         parser.add_argument('--aug_types', nargs='+', default=['crop', 'mask', 'reorder'])
         parser.add_argument('--crop_ratio', default=0.2, type=float)
