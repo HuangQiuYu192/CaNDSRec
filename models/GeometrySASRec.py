@@ -2,13 +2,13 @@
 """Score-geometry ablations for SASRec.
 
 This class deliberately changes only the final sequence--item scoring rule.
-It supports the two one-sided normalizations needed to test whether a CaNDS
-gain arises from removing candidate-side radial factors, sequence-side logit
-scale, or their combination.  It is an analysis model, not a new method.
+It supports one-sided, joint, and *partial* normalizations.  The latter is a
+controlled radial-power family: ``x / ||x||**gamma`` retains a continuously
+adjustable fraction of the original radial degree of freedom.  This is an
+analysis model, not a new recommendation method.
 """
 
 import torch
-import torch.nn.functional as F
 
 from .SASRec import SASRec
 
@@ -18,11 +18,12 @@ class GeometrySASRec(SASRec):
 
     ``sequence`` preserves item radii but fixes the sequence radius;
     ``item`` removes candidate radii but retains sequence-scale variation;
-    ``both`` is algebraically the CaNDS score.  The dot-product baseline uses
-    :class:`SASRec` rather than this class.
+    ``both`` is algebraically the CaNDS score. ``partial`` uses independently
+    configured powers for the sequence and item sides. The dot-product
+    baseline remains :class:`SASRec` rather than this class.
     """
 
-    VALID_GEOMETRIES = {"sequence", "item", "both"}
+    VALID_GEOMETRIES = {"sequence", "item", "both", "partial"}
 
     def __init__(self, config, dataset):
         super().__init__(config, dataset)
@@ -33,13 +34,35 @@ class GeometrySASRec(SASRec):
                 f"got {self.score_geometry!r}"
             )
         self.temperature = float(config["temperature"])
+        if self.score_geometry == "sequence":
+            self.sequence_norm_power, self.item_norm_power = 1.0, 0.0
+        elif self.score_geometry == "item":
+            self.sequence_norm_power, self.item_norm_power = 0.0, 1.0
+        elif self.score_geometry == "both":
+            self.sequence_norm_power, self.item_norm_power = 1.0, 1.0
+        else:
+            self.sequence_norm_power = float(config["sequence_norm_power"])
+            self.item_norm_power = float(config["item_norm_power"])
+
+        for name, power in (
+            ("sequence_norm_power", self.sequence_norm_power),
+            ("item_norm_power", self.item_norm_power),
+        ):
+            if not 0.0 <= power <= 1.0:
+                raise ValueError(f"{name} must be in [0, 1], got {power}")
 
     def _score_inputs(self, seq_output):
         item_emb = self.item_embedding.weight
-        if self.score_geometry in {"sequence", "both"}:
-            seq_output = F.normalize(seq_output, dim=-1)
-        if self.score_geometry in {"item", "both"}:
-            item_emb = F.normalize(item_emb, dim=-1)
+        if self.sequence_norm_power:
+            seq_output = seq_output / (
+                torch.linalg.vector_norm(seq_output, dim=-1, keepdim=True).clamp_min(1e-12)
+                ** self.sequence_norm_power
+            )
+        if self.item_norm_power:
+            item_emb = item_emb / (
+                torch.linalg.vector_norm(item_emb, dim=-1, keepdim=True).clamp_min(1e-12)
+                ** self.item_norm_power
+            )
         return seq_output, item_emb
 
     def _full_scores(self, seq_output):

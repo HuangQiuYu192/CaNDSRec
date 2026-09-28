@@ -112,7 +112,9 @@ def add_model_arguments(parser, base_model, dataset):
         if base_model in {'GeometrySASRec', 'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'SemanticCANDSSASRec', 'TailCLCalibratedCANDSSASRec', 'TailSimCANDSSASRec'}:
             add_cands_arguments(parser)
         if base_model == 'GeometrySASRec':
-            parser.add_argument('--score_geometry', default='both', choices=['sequence', 'item', 'both'])
+            parser.add_argument('--score_geometry', default='both', choices=['sequence', 'item', 'both', 'partial'])
+            parser.add_argument('--sequence_norm_power', default=1.0, type=float)
+            parser.add_argument('--item_norm_power', default=1.0, type=float)
     elif base_model == 'GRU4Rec':
         parser.add_argument('--hidden_size', default=64, type=int)
         parser.add_argument('--n_layers', default=1, type=int)
