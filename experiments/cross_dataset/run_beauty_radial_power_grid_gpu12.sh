@@ -19,6 +19,7 @@ OUT_ROOT="${OUT_ROOT:-$ROOT/log_runs/beauty_radial_power_grid_gpu12}"
 CKPT_ROOT="${CKPT_ROOT:-$ROOT/ckpt/beauty_radial_power_grid_gpu12}"
 RERUN="${RERUN:-false}"
 SELECTED_TAGS="${SELECTED_TAGS:-sequence both}"
+TUNE_TAGS="${TUNE_TAGS:-sequence both}"
 
 if [ ! -f "$CONDA_SH" ]; then echo "Missing CONDA_SH=$CONDA_SH" >&2; exit 127; fi
 source "$CONDA_SH"
@@ -76,16 +77,25 @@ screen() {
 }
 
 tune() {
-  # Tau=10 is already present from screen. Tune only the normalized variants.
+  # Tau=10 is already present from screen.  Restrict tuning to the variants
+  # retained by the fixed-temperature screen; this avoids spending GPU time on
+  # geometries already dominated at tau=10.
   local tau tag geometry seq_power item_power
   for tau in 5 20; do
-    start_one 1 2025 sequence sequence "$tau" 1 0
-    start_one 2 2025 both both "$tau" 1 1
+    for tag in $TUNE_TAGS; do
+      case "$tag" in
+        sequence) geometry=sequence; seq_power=1; item_power=0 ;;
+        item) geometry=item; seq_power=0; item_power=1 ;;
+        both) geometry=both; seq_power=1; item_power=1 ;;
+        partial_05_05) geometry=partial; seq_power=0.5; item_power=0.5 ;;
+        partial_10_05) geometry=partial; seq_power=1; item_power=0.5 ;;
+        partial_05_10) geometry=partial; seq_power=0.5; item_power=1 ;;
+        *) echo "Unknown TUNE_TAGS entry: $tag" >&2; exit 2 ;;
+      esac
+      if [ "${#jobs[@]}" -ge 2 ]; then wait_all; fi
+      start_one "$(( ${#jobs[@]} + 1 ))" 2025 "$tag" "$geometry" "$tau" "$seq_power" "$item_power"
+    done
     wait_all
-    start_one 1 2025 partial_05_05 partial "$tau" 0.5 0.5
-    start_one 2 2025 partial_10_05 partial "$tau" 1.0 0.5
-    wait_all
-    run_one 1 2025 partial_05_10 partial "$tau" 0.5 1.0
   done
 }
 
