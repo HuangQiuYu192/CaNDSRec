@@ -76,6 +76,13 @@ For a positive next item $i^+$, the matched implementation optimizes the same fu
 \end{equation}
 The scalar $\tau>0$ controls logit concentration and gradient scale, but cannot change a within-user ordering when it multiplies all candidates equally. The family changes neither history encoder, item identities, sequence length, nor asymptotic full-sort complexity. Its purpose is attribution: $s^{\mathrm{scale}}$ tests an explicit global-scale explanation, $s^{\mathrm{seq}}$ isolates sequence-side training geometry, $s^{\mathrm{item}}$ isolates candidate-side ordering changes, and $s^{\mathrm{joint}}$ is the empirical configuration of interest.
 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=.94\textwidth]{figures/Fig1.png}
+\caption{Controlled decomposition of final-score geometry. A dot-product score entangles directional compatibility with a sequence-specific scale and a candidate-specific item scale. The five score variants in Eq.~\ref{eq:family} separate these factors into testable controls. The diagram states the experimental logic only; it makes no performance claim.}
+\label{fig:score-family}
+\end{figure*}
+
 \paragraph{Partial normalization as a dose-response control.} To test whether effects vary continuously with removed radial freedom, the planned extension uses $N_p(\bm v)=\bm v/(\|\bm v\|_2+\epsilon)^p$ for $p\in\{0,.25,.5,.75,1\}$. Each $p$ receives its own validation-selected temperature. This is a pre-specified template item: \TODO{insert completed partial-normalization protocol and results}. No monotonic performance claim is assumed.
 
 \subsection{Rank invariance and candidate-side asymmetry}
