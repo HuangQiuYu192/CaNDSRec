@@ -155,6 +155,19 @@ Toys&\sasrec{}&.0749 $\pm$ .0048&.0411 $\pm$ .0003&.1507 $\pm$ .0102&.0575 $\pm$
 &\cands{}&\textbf{.0955 $\pm$ .0024}&\textbf{.0495 $\pm$ .0013}&\textbf{.1920 $\pm$ .0045}&\textbf{.0706 $\pm$ .0008}\\\bottomrule
 \end{tabular}}\end{table}
 
+\subsection{Paired user-level uncertainty}
+Seed variation shows that the endpoint difference is reproducible across optimization runs, but it does not quantify uncertainty over test users. We therefore resample paired leave-one-out test users within each Beauty seed, retaining the same user indices for SASRec and joint normalization. Table~\ref{tab:bootstrap} reports 2,000 paired bootstrap replicates. Every NDCG@10 interval excludes zero, from $[+.0059,+.0085]$ at seed 2023 to $[+.0046,+.0071]$ at seed 2024. The corresponding Recall@10 intervals also exclude zero. This analysis is confirmatory only: it uses already selected checkpoints and does not select a model or temperature.
+\begin{table}[t]
+\caption{Beauty paired user bootstrap for SASRec versus joint normalization. Each 95\% interval uses 2,000 paired resamples within one fixed seed.}\label{tab:bootstrap}
+\centering\scriptsize
+\begin{tabular}{rrrrr}\toprule
+Seed&$\Delta$R@10 95\% CI&$\Delta$N@10&$\Delta$N@10 95\% CI&$\Delta$R@50 95\% CI\\\midrule
+2023&[+.0040,+.0094]&+.0072&[+.0059,+.0085]&[+.0104,+.0176]\\
+2024&[+.0082,+.0133]&+.0058&[+.0046,+.0071]&[+.0273,+.0343]\\
+2025&[+.0115,+.0169]&+.0070&[+.0056,+.0083]&[+.0272,+.0346]\\\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Frequency-stratified boundary}
 Frequency is not the target of \cands{}, but it is a useful stress test for a score-geometry claim. Table~\ref{tab:groupdelta} reports training-only global item-tertile deltas. The aggregate gains are concentrated in head and mid targets across the existing Amazon endpoint study. This pattern is informative rather than a secondary success claim: a norm constraint can improve the learned global matching geometry without reconstructing the sparse evidence required to finely rank rare candidates.
 \begin{table}[t]
@@ -229,7 +242,7 @@ The central interpretation is narrower than a generic claim for cosine similarit
 
 The frequency result provides a concrete boundary. \cands{} neither reconstructs missing tail evidence nor guarantees tail exposure. The transition analysis shows that angular geometry can improve deep retrieval while failing to resolve local top-$K$ competition among sparse candidates. Items with few interactions may need content, graph structure, uncertainty estimates, or explicitly constrained objectives; none is supplied by directional calibration. The practical role of \cands{} is therefore a low-complexity geometric baseline or component, not a replacement for a tail-specific method.
 
-There are also threats to validity. The fixed-checkpoint comparison controls the sequence state, history mask, examples, and candidate universe but cannot identify a causal data-generation process. The current study uses one encoder family, three Amazon domains plus Yelp, fixed hidden width, and a validation-selected temperature protocol. It reports variation over matched seeds rather than user-level bootstrap intervals. These design choices make the present attribution cleaner but limit external generalization. A submission-ready extension should test more encoder families and public benchmarks, and add paired user-level uncertainty analysis.
+There are also threats to validity. The fixed-checkpoint comparison controls the sequence state, history mask, examples, and candidate universe but cannot identify a causal data-generation process. The current study uses one encoder family, three Amazon domains plus Yelp, fixed hidden width, and a validation-selected temperature protocol. It reports both matched-seed variation and, on Beauty, within-seed paired user bootstrap intervals. These design choices make the present attribution cleaner but limit external generalization. A submission-ready extension should test more encoder families and public benchmarks.
 
 We use anonymous public interaction IDs, no sensitive attributes, no review text, and no synthetic behavior. Data redistribution follows the original source terms. Offline relevance metrics do not measure marketplace exposure, seller impact, or user welfare; any deployment would require coverage, fairness, and stakeholder analyses beyond the scope of this study.
 
@@ -250,7 +263,7 @@ Toys&2023&.0412&.0482\\Toys&2024&.0414&.0508\\Toys&2025&.0408&.0495\\\bottomrule
 \item The test set is never used to select a checkpoint or hyperparameter.
 \item Both counterfactual scores share checkpoint, history mask, examples, and candidate universe.
 \item Every endpoint row records data version, seed, checkpoint, and command.
-\item Reported uncertainty is across matched seeds; no user-level bootstrap interval is claimed in this version.
+\item Reported uncertainty includes matched-seed variation and, for Beauty joint normalization, paired user-level bootstrap intervals.
 \item The matched-grid shell script launches paired training; the paper-evaluation shell script launches group and diagnostic analyses; the aggregation Python script produces the reported seed summaries.
 \end{enumerate}
 \bibliographystyle{ACM-Reference-Format}\bibliography{references}
