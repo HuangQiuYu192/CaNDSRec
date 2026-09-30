@@ -78,6 +78,14 @@ def build_cli_for_model(model_name: str, args: argparse.Namespace) -> list[str]:
     ]
     if model_name in {"SASRec", "GeometrySASRec", "CANDSSASRec", "AngularSmoothCANDSSASRec", "SemanticCANDSSASRec", "TailSimCANDSSASRec"}:
         cli.extend(["--n_heads", str(args.n_heads), "--attn_dropout_prob", str(args.attn_dropout_prob)])
+    if model_name == "GeometrySASRec":
+        cli.extend(
+            [
+                "--score_geometry", str(args.score_geometry),
+                "--sequence_norm_power", str(args.sequence_norm_power),
+                "--item_norm_power", str(args.item_norm_power),
+            ]
+        )
     if model_name in {"WEARec", "CANDSWEARec"}:
         cli.extend(["--num_heads", str(args.wearec_num_heads), "--alpha", str(args.wearec_alpha)])
     if model_name == "AngularSmoothCANDSSASRec":
@@ -254,6 +262,9 @@ def main() -> None:
     parser.add_argument("--train_batch_size", default=1024, type=int)
     parser.add_argument("--eval_batch_size", default=1024, type=int)
     parser.add_argument("--temperature", default=10.0, type=float)
+    parser.add_argument("--score_geometry", choices=["sequence", "item", "both", "partial"], default="both")
+    parser.add_argument("--sequence_norm_power", default=1.0, type=float)
+    parser.add_argument("--item_norm_power", default=1.0, type=float)
     parser.add_argument("--angular_smooth_weight", default=0.0, type=float)
     parser.add_argument("--angular_smooth_k", default=10, type=int)
     parser.add_argument("--angular_smooth_temperature", default=0.2, type=float)
