@@ -8,9 +8,9 @@
 \newcommand{\TODO}[1]{\textcolor{red}{[TBD: #1]}}
 \newtheorem{proposition}{Proposition}
 \begin{document}
-\title{Directional Calibration for Sequential Recommendation: An Evidence-Driven Study of Embedding Geometry}
+\title{When Rank-Invariant Normalization Improves Sequential Recommendation: Training Geometry and Temperature Calibration}
 \begin{abstract}
-Sequential recommenders commonly score an item by the dot product of a sequence representation and an item embedding. This score entangles directional compatibility with representation norms, making radius an item-specific multiplier. We study directional calibration: unit-normalizing both representations and using one global temperature for softmax concentration. We instantiate it in \cands{}, a parameter-free modification of a self-attentive sequential recommender. We derive a pairwise rank-reversal condition and evaluate it with within-checkpoint dot-versus-cosine counterfactuals, norm--popularity correlations, and matched-seed endpoint comparisons. Across Beauty, Sports, and Toys with three matched seeds, \cands{} improves NDCG@10 by 0.0067, 0.0070, and 0.0084, respectively, with a positive overall NDCG@10 delta in every seed. The gains concentrate on head and mid targets; tail NDCG@10 is not consistently improved. Counterfactuals show that post-hoc cosine replacement of a dot-product checkpoint is not sufficient, indicating that the benefit is primarily a training-geometry effect rather than a universal re-ranker.
+Dot-product sequential recommenders entangle sequence--item compatibility with the norms of the sequence state and candidate embedding. A central but overlooked consequence is that normalizing a emph{fixed} sequence state cannot change its within-user candidate ranking: it only rescales every candidate score by the same positive quantity. Why, then, can sequence normalization improve a recommender after training? We study this question through \cands{}, a parameter-free temperature-scaled angular scoring rule. We prove that sequence normalization removes the radial component of the final matching gradient and replaces a sample-dependent logit scale by an explicit global temperature; item normalization is asymmetric because it can alter candidate order. On Beauty, a validation-only temperature study finds stable effective regions around $\tau=4$--$5$ for sequence-only normalization and $\tau=10$ for joint normalization. Across three independent seeds, joint normalization improves SASRec from .0394 to .0460 NDCG@10, while a frozen-state counterfactual preserves sequence-normalized ranks for more than 99.9\% of examples. Score-scale, entropy, margin, and rank-transition diagnostics show that the gain is a training-geometry and calibration effect, not a post-hoc re-ranking effect. Frequency-stratified analyses are reported as a boundary: normalization improves overall ranking but does not by itself guarantee tail NDCG@10 gains.
 \end{abstract}
 \begin{CCSXML}
 <ccs2012>
@@ -22,27 +22,27 @@ Sequential recommenders commonly score an item by the dot product of a sequence 
 </ccs2012>
 \end{CCSXML}
 \ccsdesc[500]{Information systems~Recommender systems}
-\keywords{sequential recommendation, long-tail recommendation, cosine similarity, embedding geometry, popularity bias}
+\keywords{sequential recommendation, representation normalization, cosine similarity, embedding geometry, temperature calibration}
 \maketitle
 \section{Introduction}
-Sequential recommendation predicts the next interaction from an ordered history. Recurrent, self-attentive, and masked-item models differ in how they construct a sequence state~\cite{hidasi2016gru4rec,kang2018sasrec,sun2019bert4rec}, but commonly finish with $s_{ui}=\bm h_u^\top\bm e_i$. Writing $\bm h_u=\|\bm h_u\|\widehat{\bm h}_u$ and $\bm e_i=\|\bm e_i\|\widehat{\bm e}_i$ gives
+Sequential recommendation predicts the next interaction from an ordered history. Recurrent, self-attentive, and masked-item models differ in how they construct a sequence state~\cite{hidasi2016gru4rec,kang2018sasrec,sun2019bert4rec}, but commonly finish with a dot product $s_{ui}=\bm h_u^\top\bm e_i$. Writing $\bm h_u=\|\bm h_u\|\widehat{\bm h}_u$ and $\bm e_i=\|\bm e_i\|\widehat{\bm e}_i$ gives
 \begin{equation}
 s_{ui}=\underbrace{\|\bm h_u\|\|\bm e_i\|}_{\text{radial scale}}\underbrace{\widehat{\bm h}_u^\top\widehat{\bm e}_i}_{\text{directional compatibility}}.\label{eq:dot}
 \end{equation}
-An item norm thus multiplies every user's score. Norms may encode useful information, and their association with frequency is an empirical question rather than a presupposition. Popularity can affect accuracy, exposure, and learned ranking~\cite{steck2011popularity,abdollahpouri2017controlling}.
+Equation~\ref{eq:dot} mixes two distinct quantities. Direction measures whether a history and an item are compatible; radius controls score scale. This distinction is consequential for learning, but its inference-time implication is subtle. If only $\bm h_u$ is unit-normalized, then every candidate score for the same user is divided by the same positive $\|\bm h_u\|$. The ordering is therefore unchanged for a frozen representation. A test-time sequence-cosine re-ranker cannot improve a deterministic full-sort ranking except through numerical ties.
 
-This decomposition matters in sequential recommendation because a next-item score has two conceptually different roles. Its angle answers whether a history and an item point in compatible directions; its radius changes the score scale of the item for every history. A dot-product model is free to use both. This flexibility can be useful, but it also makes it difficult to tell whether an observed ranking follows sequence--item compatibility or a candidate-side scale factor. Existing long-tail motivation alone does not settle this question: a rare item can have a large or small norm, and a frequent item can be well or poorly aligned with a particular sequence. We therefore avoid assuming a particular norm--popularity direction.
+This exact invariance creates a useful research question. Sequence normalization is routinely described as a similarity choice, yet its benefit---when one occurs---cannot be attributed to direct test-time re-ranking. Instead, it must arise because the training objective and its gradients changed. In particular, dot-product training permits each sequence state to set a sample-dependent logit scale through $\|\bm h_u\|$, whereas sequence normalization removes that degree of freedom and leaves a global temperature to control concentration. Normalizing item embeddings is different: item radii are candidate-specific and their removal can change rankings. Treating the two operations as interchangeable obscures both the mechanism and the role of temperature.
 
-We ask a narrow, falsifiable question: when does radial scale reverse a ranking that directional similarity would prefer, and does eliminating this degree of freedom improve a trained sequential recommender? \cands{} removes item-specific radial scale from the final score while retaining one global temperature. It adds no side information, agent, synthetic interaction, or trainable parameter. Since independently trained models cannot isolate geometry from optimization, we additionally evaluate score changes within a fixed checkpoint.
+We study this distinction with \cands{}, a parameter-free modification of a self-attentive sequential recommender. \cands{} uses a temperature-scaled angular score and changes neither the encoder nor the candidate universe. Our aim is not to claim that cosine similarity is universally better, or that normalization solves long-tail recommendation. Rather, we ask: \emph{when a rank-invariant sequence normalization improves a trained sequential recommender, what evidence establishes the training-geometry mechanism?}
 
-Our contribution is an evidence-driven study rather than a claim that cosine scoring universally fixes long-tail recommendation:
+Our contributions are an evidence-driven analysis of that question:
 \begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
-\item We formulate directional calibration for sequential ranking, derive an exact pairwise rank-reversal condition, and show that normalized training produces tangential item gradients.
-\item We introduce checkpoint-level diagnostics that separate score counterfactuals from retrained endpoint effects: directional displacement, norm--popularity association, and dot--cosine rank changes.
-\item We conduct three matched-seed full-sort evaluations on Beauty, Sports, and Toys. The gains are consistent overall and concentrated on head and mid targets, while the tail boundary is reported explicitly rather than hidden in an aggregate metric.
+\item We formalize the asymmetry between sequence-side and item-side normalization. Sequence-side normalization is rank-invariant for fixed representations, but constrains the final matching gradient to the tangent space of the sequence sphere; item-side normalization can alter candidate order.
+\item We derive the role of temperature as an explicit replacement for sample-dependent sequence scale, and formulate falsifiable diagnostics for frozen-score invariance, radial-gradient energy, score spread, entropy, and rank transitions.
+\item We combine matched endpoint experiments with validation-only temperature selection and multi-seed checkpoint analyses. The evidence separates a training-geometry effect from a post-hoc score substitution, while reporting frequency-stratified limitations without making them the paper's objective.
 \end{itemize}
 
-This framing is deliberately conservative. It makes the method easy to reproduce and makes a negative tail result informative: if normalization improves the aggregate ranking but not tail NDCG, the remaining limitation is not addressed by a change of scoring geometry alone.
+This framing makes a small architectural change scientifically testable. It also gives a practical boundary: if normalization moves deep-rank targets closer without improving their top-$K$ positions, a separate fine-ranking or evidence module is needed rather than another unexamined normalization rule.
 
 \section{Related Work}
 \subsection{Sequential next-item models}
@@ -51,8 +51,8 @@ Sequential models improve the state constructed from an interaction prefix. GRU4
 \subsection{Normalized representations and metric geometry}
 Unit-normalized representations have been used to make angular relations explicit in classification and representation learning~\cite{wang2017normface,davidson2018hyperspherical}. Their appeal is not that norms are intrinsically harmful; instead, they impose a modeling restriction that separates direction from scale. In a sequential recommender, the same restriction removes the ability of an item radius to multiply scores across users. Our analysis extends this observation in two ways: Eq.~\ref{eq:reversal} identifies the precise ranking event affected by radial scale, and Eq.~\ref{eq:tangent} characterizes the corresponding training geometry. We consequently evaluate both a fixed-checkpoint score counterfactual and a retrained endpoint, which should not be conflated.
 
-\subsection{Popularity, long-tail ranking, and calibration}
-Popularity-aware recommendation studies show that frequency can influence accuracy, exposure, and recommendation distributions~\cite{steck2011popularity,abdollahpouri2017controlling}. Such work motivates careful group evaluation, but it does not imply that an embedding norm always tracks popularity or that removing norms must help rare targets. We use training-only global item tertiles to make this distinction measurable. \cands{} is thus not presented as a popularity penalty, exposure controller, or semantic tail-augmentation method. It is a calibration of the final matching geometry whose long-tail consequences must be measured rather than assumed.
+\subsection{Score calibration and frequency effects}
+Popularity-aware recommendation studies show that frequency can influence accuracy, exposure, and learned ranking~\cite{steck2011popularity,abdollahpouri2017controlling}. This motivates frequency-stratified evaluation, but it does not imply that an embedding norm is a popularity proxy or that removing norms helps rare targets. We therefore treat popularity only as a diagnostic stratification: active items are partitioned using training interactions, and group results are reported as a boundary of a geometry intervention. \cands{} is neither a popularity penalty nor a tail-augmentation method; it is a controlled change to the final matching geometry.
 
 \section{Method and Analysis}
 \subsection{Task and directional calibration}
@@ -64,33 +64,35 @@ Here $\widehat{\bm v}=\bm v/(\|\bm v\|_2+\epsilon)$; $\epsilon$ is only a numeri
 
 The implementation supports the same pointwise cross-entropy objective as the SASRec baseline and normalizes the sequence output and the entire item embedding table at each scoring call. It can also be used with the sampled negative objective already supported by the base implementation; the reported experiments use the matched configuration of the baseline. This detail matters because normalization is applied in both training and inference. A test-time cosine re-ranker is a different intervention and is evaluated separately below.
 
-\subsection{Pairwise radial rank reversal}
-For target $t$ and competitor $p$, set $c_t=\widehat{\bm h}_u^\top\widehat{\bm e}_t$ and $c_p=\widehat{\bm h}_u^\top\widehat{\bm e}_p$. If $c_t>c_p>0$, directional scoring chooses $t$ but the dot product chooses $p$ exactly when
+\subsection{Rank invariance and candidate-side asymmetry}
+Consider first sequence-only normalization, $s^{\mathrm{seq}}_{ui}=\tau\widehat{\bm h}_u^\top\bm e_i$. For a fixed nonzero state $\bm h_u$, $s^{\mathrm{seq}}_{ui}=\frac{\tau}{\|\bm h_u\|_2}s_{ui}$. The multiplier is positive and independent of $i$; it cannot change the within-user order. This property is exact in real arithmetic and motivates a frozen-representation counterfactual in our experiments.
+\begin{proposition}[Sequence-side rank invariance]
+For any nonzero $\bm h_u$ and arbitrary candidate vectors $\{\bm e_i\}_{i\in\mathcal I}$, $\operatorname{rank}_i(\bm h_u^\top\bm e_i)=\operatorname{rank}_i(\widehat{\bm h}_u^\top\bm e_i)$, up to ties.
+\end{proposition}
+\begin{proof}
+For all candidates $i$, $\widehat{\bm h}_u^\top\bm e_i=(1/\|\bm h_u\|_2)\bm h_u^\top\bm e_i$. Multiplication by a common positive scalar preserves every pairwise score inequality.
+\end{proof}
+
+Item-side normalization is not invariant in this way because $\|\bm e_i\|_2$ differs across candidates. For target $t$ and competitor $p$, set $c_t=\widehat{\bm h}_u^\top\widehat{\bm e}_t$ and $c_p=\widehat{\bm h}_u^\top\widehat{\bm e}_p$. If $c_t>c_p>0$, angular scoring chooses $t$ but the dot product chooses $p$ exactly when
 \begin{equation}
 \frac{\|\bm e_p\|_2}{\|\bm e_t\|_2}>\frac{c_t}{c_p}.\label{eq:reversal}
 \end{equation}
-The sequence norm cancels, making this a candidate-side radial effect. The positive-angle condition is deliberate: Eq.~\ref{eq:reversal} describes an intuitive competition in which both candidates are compatible with the current history but one is more compatible directionally. If either cosine is non-positive, a radial ratio can still affect a dot-product ordering, but the ratio form is no longer the most informative diagnostic. Our empirical displacement statistic records the former case only and consequently has a precise interpretation.
+The sequence norm cancels, making this a candidate-side radial effect. Eq.~\ref{eq:reversal} is not a superiority claim: candidate radius may encode useful calibration information. It instead establishes why sequence-only and item-only normalization must be analyzed separately.
 \begin{proposition}For nonzero representations, \cands{} ranks $t$ above $p$ if and only if $c_t>c_p$, and this order is invariant to independent positive rescaling of the sequence and item vectors.\end{proposition}
 \begin{proof}Equation~\ref{eq:cands} is the positive constant $\tau$ times $c_i$. Replacing either vector by a positive multiple leaves its unit vector unchanged. Thus the score difference has the same sign as $c_t-c_p$, independently of all positive radii.\end{proof}
 This proposition identifies an invariance, not a superiority theorem. If norm encodes a useful property, dot-product ranking may be preferable. The empirical role of the next sections is to determine whether this restriction helps under matched training.
 
 \subsection{Training geometry}
-The radial restriction is not merely an inference-time invariance. For the
-dot-product full-softmax loss, with $p_{uj}$ denoting the softmax probability
-and $y_{uj}=\mathbf{1}[j=i^+]$, the item gradient is
-$\nabla_{\bm e_j}\mathcal L=(p_{uj}-y_{uj})\bm h_u$. Its radial projection is
-$(p_{uj}-y_{uj})\|\bm h_u\|_2\widehat{\bm e}_j^\top\widehat{\bm h}_u$.
-Thus, except at zero angular compatibility, the matching loss can directly
-change a candidate's radius under dot-product training.
-\begin{proposition}[Tangential item gradient]
-Let $\bm z_i=\bm e_i/\|\bm e_i\|_2$ and let $\mathcal L$ be any differentiable loss that depends on $\bm e_i$ only through $\bm z_i$. Then
+The rank invariance above is not an optimization invariance. For the dot-product full-softmax loss, with $p_{uj}$ denoting the softmax probability and $y_{uj}=\mathbf{1}[j=i^+]$, the item gradient is $\nabla_{\bm e_j}\mathcal L=(p_{uj}-y_{uj})\bm h_u$. Its radial projection is generally nonzero. Likewise, scaling $\bm h_u$ changes dot-product logits without changing its direction, so the sequence norm acts as a sample-dependent logit scale during training.
+\begin{proposition}[Tangential normalized-score gradient]
+Let $\bm z=\bm v/\|\bm v\|_2$ and let $\mathcal L$ be any differentiable loss that depends on $\bm v$ only through $\bm z$. Then
 \begin{equation}
-\nabla_{\bm e_i}\mathcal L=\frac{1}{\|\bm e_i\|_2}\left(\bm I-\bm z_i\bm z_i^\top\right)\nabla_{\bm z_i}\mathcal L,
-\qquad \bm e_i^\top\nabla_{\bm e_i}\mathcal L=0.\label{eq:tangent}
+\nabla_{\bm v}\mathcal L=\frac{1}{\|\bm v\|_2}\left(\bm I-\bm z\bm z^\top\right)\nabla_{\bm z}\mathcal L,
+\qquad \bm v^\top\nabla_{\bm v}\mathcal L=0.\label{eq:tangent}
 \end{equation}
 \end{proposition}
-\begin{proof}For nonzero $\bm e$, differentiating $\bm z=\bm e/\|\bm e\|_2$ gives the Jacobian $\|\bm e\|_2^{-1}(\bm I-\bm z\bm z^\top)$. Applying the chain rule yields the first equality. The matrix in parentheses is an orthogonal projection onto the tangent space of the unit sphere, hence it annihilates $\bm z$. Since $\bm e=\|\bm e\|_2\bm z$, the inner product with $\nabla_{\bm e_i}\mathcal L$ is zero.\end{proof}
-Equation~\ref{eq:tangent} states a concrete optimization distinction: the final matching loss updates an item's direction but has no direct radial component. The $1/\|\bm e_i\|_2$ factor also changes the scale of the directional update in the unconstrained parameterization. Dot-product training has neither restriction. This does not guarantee higher metrics, because radius can contain useful information and other loss terms or optimizers can still move norms indirectly. Mechanism diagnostics and matched endpoint tests are therefore both necessary.
+\begin{proof}For nonzero $\bm v$, differentiating $\bm z=\bm v/\|\bm v\|_2$ gives the Jacobian $\|\bm v\|_2^{-1}(\bm I-\bm z\bm z^\top)$. Applying the chain rule yields the first equality. The matrix in parentheses is an orthogonal projection onto the tangent space of the unit sphere, hence it annihilates $\bm z$. Since $\bm v=\|\bm v\|_2\bm z$, the inner product with $\nabla_{\bm v}\mathcal L$ is zero.\end{proof}
+Equation~\ref{eq:tangent} applies to $\bm v=\bm h_u$ for sequence-only normalization and to both $\bm h_u$ and $\bm e_i$ for joint normalization. Thus, sequence normalization can change training even though it cannot change the frozen ranking in Proposition~1. The $1/\|\bm v\|_2$ factor also changes directional update scale in the unconstrained parameterization. This does not guarantee higher metrics: radius can contain useful information, and other paths through the encoder or optimizer can affect norms indirectly. Matched endpoint tests and direct gradient diagnostics are consequently both necessary.
 
 \begin{proposition}[Cosine-logit capacity]
 For a catalogue of $M$ items and temperature-scaled cosine logits
@@ -106,26 +108,14 @@ least $-\tau$. The largest attainable positive softmax probability is therefore
 $[1+(M-1)e^{-2\tau}]^{-1}$. Taking its negative logarithm gives
 Eq.~\ref{eq:logitbound}.
 \end{proof}
-This bound makes the role of temperature explicit. Unit normalization removes
-candidate-specific radial scale, but it also bounds all logit gaps by $2\tau$.
-The global temperature is consequently required to provide sufficient
-full-catalogue discrimination; it is not a substitute for item-specific norms
-and it cannot alter a fixed user's cosine ordering.
+This bound makes the role of temperature explicit. Unit normalization bounds all logit gaps by $2\tau$; $\tau$ is therefore an explicit capacity and calibration control, not an incidental hyperparameter. It cannot alter a fixed user's angular ordering, but it changes loss concentration and gradients during training.
 
 \subsection{Falsifiable checkpoint diagnostics}
-We use three diagnostics, each answering a different question. First, the Spearman correlation $\rho(\|\bm e_i\|_2,\mathrm{pop}(i))$ describes whether learned item norms are associated with training interactions; it is not an exposure metric or a causal estimate. Second, for every test example we identify the strongest dot-product competitor and define directional displacement as the fraction for which $c_t>c_p>0$ but the competitor ranks above the target under the dot product. This statistic is directly tied to Eq.~\ref{eq:reversal}. Third, we recompute ranks after replacing dot scores with cosine scores inside the same checkpoint. The history, test target, candidate catalogue, and masking remain fixed. This counterfactual isolates a score change, whereas the endpoint comparison isolates the effect of retraining with the altered geometry. Agreement is informative; disagreement is equally informative because it reveals an optimization effect that a post-hoc re-ranker cannot reproduce.
+We use three diagnostics, each with a different falsifiable prediction. First, for a fixed representation we compare dot scores with sequence-normalized scores under the identical history mask. Proposition~1 predicts identical target ranks and top-$K$ lists up to numerical ties. We also normalize only item embeddings; its lower top-$K$ overlap quantifies the candidate-side asymmetry rather than treating it as an optimization effect.
 
-\paragraph{Pre-specified decomposition tests.}
-The analysis yields two predictions that can be falsified without introducing a
-new encoder. First, the radial-gradient energy of the final matching loss
-should be nonzero for dot-product SASRec and numerically zero for CaNDS, while
-the tangential component remains. Second, one-sided normalizations should not
-be treated as interchangeable with CaNDS: normalizing items removes
-candidate-side radius from an ordering, whereas normalizing sequence states
-principally changes training-time logit scale. We test dot-product SASRec,
-sequence-only normalization, item-only normalization, and joint normalization
-under matched seeds and a dot-product weight-decay control. The control tests
-the rival explanation that any gain is simply caused by shrinking embeddings.
+Second, we measure radial-gradient energy at the final matching head, as well as the empirical score standard deviation, predictive entropy, and top-one/top-two margin after training. Equation~\ref{eq:tangent} predicts a zero direct radial component for normalized inputs; the distributional measures test whether the learned models also differ in score concentration.
+
+Third, we compare paired rank transitions between dot and normalized checkpoints. For every test target, we record movements among $1$--$5$, $6$--$10$, $11$--$20$, $21$--$50$, $51$--$100$, and $>100$. This diagnostic is essential for interpreting a metric trade-off: a model can improve deep retrieval while failing to improve top-$10$ ranking. None of these diagnostics is a causal claim about data generation; jointly, they distinguish a frozen-score property from a retrained endpoint effect.
 
 \section{Experimental Protocol}
 \subsection{Data and evaluation split}
@@ -144,12 +134,12 @@ Toys&19,412&11,924&167,597&.000724&8.63\\\bottomrule
 We evaluate by full-sort ranking over the complete catalogue after masking observed training items according to the standard sequential-evaluation protocol. For a target rank $r_u$, $\mathrm{Recall@}K=\frac{1}{|\mathcal U|}\sum_u\mathbb{1}[r_u\leq K]$ and $\mathrm{NDCG@}K=\frac{1}{|\mathcal U|}\sum_u\mathbb{1}[r_u\leq K]/\log_2(r_u+1)$. We report both metrics at cutoffs $5$, $10$, $20$, $50$, and $100$, using NDCG@10 as the primary compact metric in the main tables. Head, mid, and tail are global, training-only partitions of active items sorted by training interaction count. The groups contain equal numbers of \emph{items}, not equal numbers of test examples; this prevents test leakage and avoids changing a target's group according to the test split.
 
 \subsection{Matched comparison}
-\sasrec{} and \cands{} share architecture, chronological split, optimizer, batch size, early stopping rule, and random seed. The base setup has two Transformer layers, 256 hidden units, two attention heads, inner size 1024, maximum history length 50, and fixed $\tau=10$. The only intended method difference is the scoring geometry in Eq.~\ref{eq:cands}. Three seeds (2023, 2024, and 2025) are matched one-to-one. We report their mean and standard deviation, paired seed deltas, and the fraction of positive deltas. A checkpoint is selected by the validation procedure of its own run; the test set is never used to choose a checkpoint, temperature, or reported seed.
+\sasrec{} and \cands{} share architecture, chronological split, optimizer, batch size, early stopping rule, and random seed. The base setup has two Transformer layers, 256 hidden units, two attention heads, inner size 1024, and maximum history length 50. The only intended method difference is the scoring geometry in Eq.~\ref{eq:cands}. Three seeds (2023, 2024, and 2025) are matched one-to-one. We report their mean and standard deviation, paired seed deltas, and the fraction of positive deltas. A checkpoint and a temperature are selected by validation only; the test set is not used to choose either. We distinguish a one-seed temperature-development split from independent-seed endpoint confirmation.
 
 The comparison is intentionally narrow. It establishes whether directional calibration improves a strong self-attentive baseline under controlled conditions; it does not establish dominance over every recent sequential model. We state this scope because changing the encoder, negative-sampling regime, or preprocessing while changing the score geometry would make an apparent gain hard to interpret.
 
 \subsection{Mechanism protocol and reproducibility}
-For each fixed test state, our diagnostic masks histories identically and ranks candidates by dot product and cosine. It records the strongest dot-product competitor, its norm and group, angular margin, norm ratio, and whether the target is directionally preferred but dot-displaced. This is a scoring counterfactual, not a causal claim about retraining. We separately test the tangential-gradient prediction by comparing norm--popularity association and norm distributions after matched training. Every endpoint record stores the dataset, seed, checkpoint path, and command; the released scripts separate matched training, global-tertile group evaluation, and directional diagnosis. This separation is important because it prevents an analysis script from silently altering a completed experimental result.
+For each fixed test state, our diagnostic masks histories identically before comparing raw dot, sequence-normalized, and item-normalized scores. It records rank equality, top-$K$ overlap, score scale, entropy, margins, and transitions between rank bins. This is a frozen-score diagnostic, not a causal claim about retraining. We separately test the tangential-gradient prediction by differentiating only the final matching head, holding the complementary side fixed. Every endpoint record stores the dataset, seed, checkpoint path, and command; the released scripts separate training, validation-only tuning, and checkpoint analysis. This separation prevents an analysis script from silently altering a completed result.
 
 \section{Results and Analysis}
 \subsection{Matched endpoint evaluation}
@@ -165,8 +155,8 @@ Toys&\sasrec{}&.0749 $\pm$ .0048&.0411 $\pm$ .0003&.1507 $\pm$ .0102&.0575 $\pm$
 &\cands{}&\textbf{.0955 $\pm$ .0024}&\textbf{.0495 $\pm$ .0013}&\textbf{.1920 $\pm$ .0045}&\textbf{.0706 $\pm$ .0008}\\\bottomrule
 \end{tabular}}\end{table}
 
-\subsection{Target-frequency decomposition}
-The aggregate improvement has a clear target-frequency structure. Table~\ref{tab:groupdelta} shows mean matched deltas. For head targets, \cands{} improves NDCG@10 by .0117, .0120, and .0153 on Beauty, Sports, and Toys. The mid group also improves consistently, by .0029, .0030, and .0065. These results explain why the aggregate gain persists across seeds: the improvements occur in groups contributing a large share of the observed next-item targets, not in a single outlying seed.
+\subsection{Frequency-stratified boundary}
+Frequency is not the target of \cands{}, but it is a useful stress test for a score-geometry claim. Table~\ref{tab:groupdelta} reports training-only global item-tertile deltas. The aggregate gains are concentrated in head and mid targets across the existing Amazon endpoint study. This pattern is informative rather than a secondary success claim: a norm constraint can improve the learned global matching geometry without reconstructing the sparse evidence required to finely rank rare candidates.
 \begin{table}[t]
 \caption{Matched \cands{}--\sasrec{} deltas by target group (mean over three seeds). Positive rates are the fraction of seeds with a positive NDCG@10 delta.}\label{tab:groupdelta}
 \centering\scriptsize
@@ -184,8 +174,8 @@ Toys&Head&+.0305&+.0153&3/3\\
 \end{tabular}
 \end{table}
 
-\paragraph{Long-tail boundary.} The result is not a universal long-tail gain. At NDCG@10, the matched tail delta is $-0.0024$ on Beauty, $-0.0012$ on Sports, and $-0.0027$ on Toys. Tail Recall@10 is mixed (Beauty $-0.0011$, Sports $-0.0022$, Toys $+0.0061$). In particular, the Toys tail result illustrates why Recall and NDCG should both be reported: more targets enter the top ten, but their rank positions do not improve enough to raise discounted gain. Thus the evidence supports improved overall sequential ranking, especially head and mid targets, but does not support a claim that normalization alone solves tail recommendation.
-\begin{table}[t]\caption{Tail-target results under global training-popularity item tertiles (mean $\pm$ standard deviation, three seeds). The table makes the long-tail boundary explicit.}\label{tab:tail}\centering\scriptsize
+\paragraph{Boundary, not objective.} The result is not a universal tail gain. At NDCG@10, the matched tail delta is $-0.0024$ on Beauty, $-0.0012$ on Sports, and $-0.0027$ on Toys. We retain these results to prevent an aggregate metric from being misread as evidence of tail improvement, but do not frame them as the paper's main task.
+\begin{table}[t]\caption{Frequency-stratified boundary under global training-popularity item tertiles (mean $\pm$ standard deviation, three seeds).}\label{tab:tail}\centering\scriptsize
 \resizebox{\columnwidth}{!}{\begin{tabular}{lrrrr}\toprule
 Dataset&SASRec R@10&CaNDS R@10&SASRec N@10&CaNDS N@10\\\midrule
 Beauty&.0289 $\pm$ .0012&.0278 $\pm$ .0014&.0142 $\pm$ .0016&.0118 $\pm$ .0009\\
@@ -194,38 +184,27 @@ Toys&.0461 $\pm$ .0037&.0522 $\pm$ .0012&.0266 $\pm$ .0006&.0238 $\pm$ .0021\\\b
 \end{tabular}}\end{table}
 
 \subsection{Mechanism evidence}
-We report three distinct quantities: norm--popularity association, fixed-state rank change after radial removal, and retrained endpoint metrics. SASRec norms are negatively associated with popularity ($\rho\in[-.843,-.709]$), while the association is substantially weaker after \cands{} training ($\rho\in[-.258,-.157]$). This direction is the opposite of a simplistic ``large-norm head item'' explanation: the result cannot be explained by saying that popular candidates merely obtain larger radii and crowd out tails.
+The decisive test of Proposition~1 uses the same frozen representation, history mask, target, and candidate catalogue. Across three Beauty seeds, replacing raw dot scores by sequence-normalized scores preserved the target rank for $99.91\%$--$99.96\%$ of test examples and preserved the entire top-$10$ list for approximately $99.99\%$. The small residual is attributable to finite-precision comparisons at near ties. Thus, a sequence-only score substitution is not a plausible explanation for the endpoint gain.
 
-The fixed-state counterfactual is deliberately weaker than a retraining comparison. Replacing dot scores by cosine after SASRec training changes overall R@10 by only $[-.0028,-.0006]$. In contrast, the cosine score is coherent with a \cands{} checkpoint and yields positive R@10 differences of .0067, .0052, and .0059 relative to its dot-score counterfactual. The two findings together rule out the simplistic interpretation that a cosine re-ranker is sufficient. They are consistent with the tangential training geometry in Eq.~\ref{eq:tangent}: learning under the restricted score class changes the directions that are available at inference.
-\begin{table}[t]\caption{Within-checkpoint diagnostics, averaged over three seeds. Displacement is the rate at which a directionally preferred target loses to the strongest dot-product competitor.}\label{tab:mechanism}\centering\scriptsize
-\resizebox{\columnwidth}{!}{\begin{tabular}{llrrr}\toprule Dataset&Model&$\rho(\|e\|,pop)$&Displacement&$\Delta$R@10 cos--dot\\\midrule
-Beauty&\sasrec{}&-.751&.0074&-.0028\\
-&\cands{}&-.258&.0208&+.0067\\
-Sports&\sasrec{}&-.843&.0027&-.0006\\
-&\cands{}&-.157&.0071&+.0052\\
-Toys&\sasrec{}&-.709&.0084&-.0019\\
-&\cands{}&-.175&.0168&+.0059\\\bottomrule
+The same counterfactual exposes the candidate-side asymmetry. Normalizing item vectors reduced raw-versus-item-normalized top-$10$ Jaccard overlap to .71--.79, depending on the trained checkpoint. Item normalization consequently changes the candidate list, whereas sequence normalization does not. This distinction is why joint normalization should be evaluated with a separate temperature rather than described as a stronger version of the same inference-time operation.
+\begin{table}[t]\caption{Beauty mechanism diagnostics (mean $\pm$ standard deviation over three seeds). Score standard deviation, entropy, and margin are computed after history masking.}\label{tab:mechanism}\centering\scriptsize
+\resizebox{\columnwidth}{!}{\begin{tabular}{lrrrrr}\toprule
+Geometry&Score std.&Entropy&Top-1/2 margin&Seq. rank equality&Item Top-10 Jaccard\\\midrule
+Dot&2.2287$\pm$.3835&3.8682$\pm$.3281&2.5796$\pm$.3323&.9991$\pm$.0003&.7109$\pm$.0607\\
+Sequence ($\tau=4$)&1.6947$\pm$.0106&5.7828$\pm$.0559&.9665$\pm$.0226&.9995$\pm$.0001&.7102$\pm$.0037\\
+Joint ($\tau=10$)&1.1316$\pm$.0192&7.1040$\pm$.0865&1.1758$\pm$.2092&.9995$\pm$.0001&.7933$\pm$.0486\\\bottomrule
 \end{tabular}}\end{table}
 
-\subsection{Direct gradient check and external decomposition}
-The gradient prediction is observed directly rather than inferred from final
-embedding norms. Across 16 fixed training mini-batches, the radial energy
-fraction of the item-table gradient is $5.20\%$ for Beauty SASRec and $3.72\%$
-for Sports SASRec, versus $0.056\%$ and $0.102\%$ for the corresponding
-CaNDS checkpoints. The small residual is expected from finite-precision
-normalization and confirms the tangential prediction in Eq.~\ref{eq:tangent}
-at the level of the implemented loss.
+Table~\ref{tab:mechanism} also shows that normalized training is associated with less dispersed scores, higher predictive entropy, and smaller top-one/top-two gaps. These quantities do not prove a unique causal path from score dispersion to NDCG; they are distributional evidence consistent with explicit temperature calibration replacing unconstrained radial scaling.
 
-We then run a pre-specified external decomposition on Yelp with the same three
-seeds. This is not a new main comparison; it probes which part of the scoring
-intervention transfers beyond short Amazon purchase sequences. Joint
-normalization is best on every reported Yelp metric, whereas item-only
-normalization is below the dot product. Thus the result supports neither a
-generic ``smaller norm'' explanation nor the view that normalizing items alone
-is sufficient. The dot-product L2 control also does not match joint
-normalization. These observations identify joint score geometry as the
-externally supported intervention and retain sequence-scale calibration as a
-measurable competing explanation.
+\subsection{Direct gradient check and external decomposition}
+The gradient prediction is observed directly rather than inferred from final embedding norms. Holding the candidate table fixed, the radial-energy fraction of the final sequence-state gradient was 3.25\% on average for dot-product SASRec across Beauty seeds, and numerically zero ($<4\times10^{-16}$) for sequence-only and joint normalization. Holding the encoder output fixed gives the corresponding item-side result: it is near zero for joint normalization but not for sequence-only normalization. These measurements match the asymmetric derivation in Eq.~\ref{eq:tangent}: sequence-only normalization constrains the sequence scoring path, while joint normalization constrains both final-score paths.
+
+Temperature is necessary for this constraint to remain useful. A wide Beauty development grid over $\{.5,1,2,5,10,20,40\}$ selected $\tau=5$ for sequence-only and $\tau=10$ for joint normalization. A local validation-only refinement selected $\tau=4$ for sequence-only (NDCG@10=.0605) but did not improve the joint $\tau=10$ optimum (NDCG@10=.0608). Independent seeds confirmed that sequence $\tau=4$ and $\tau=5$ occupy a stable region: $\tau=4$ increased NDCG@10 by .0003 while decreasing Recall@10 by .0016. We therefore report a stable region rather than claiming a universal point optimum.
+
+The paired rank-transition analysis clarifies the frequency boundary. For tail targets, sequence-only and joint normalization improved Recall@50 by .0088 and .0176, respectively, but changed Recall@10 by $-.0020$ and $-.0011$. Joint normalization moved 2.58\% of tail targets from ranks above 50 into ranks 11--50, yet its top-$10$ entry rate (.69\%) remained below its top-$10$ exit rate (.81\%). The geometry therefore improves coarse retrieval for some deep targets without guaranteeing their fine top-$K$ order.
+
+We then use the pre-specified Yelp decomposition as an external check beyond short Amazon purchase sequences. Joint normalization is best on every reported Yelp metric, whereas item-only normalization is below the dot product. Thus the result supports neither a generic ``smaller norm'' explanation nor the view that normalizing items alone is sufficient. The dot-product L2 control also does not match joint normalization. These observations support joint score geometry as an empirical option while retaining sequence-scale calibration as the mechanism isolated by the frozen-rank theorem.
 \begin{table}[t]
 \caption{External Yelp score-geometry decomposition ($d=256$), mean $\pm$
 standard deviation over three matched seeds. $^\dagger$The L2 control uses one
@@ -241,21 +220,21 @@ Yelp&Dot&.0575$\pm$.0005&.0368$\pm$.0002&.0831$\pm$.0014&.0432$\pm$.0004\\
 \end{tabular}}\end{table}
 
 \subsection{Sensitivity and failure modes}
-The current evidence fixes $\tau=10$ and $d=256$ to isolate scoring geometry. This choice is intentionally not presented as a universal optimum. A one-seed temperature diagnostic on each Amazon domain and Yelp selected $\tau=10$ from $\{5,10,20\}$, but it is not used to make a universal temperature claim; all final choices remain validation-only. The external experiment therefore validates score geometry at a fixed, pre-specified temperature rather than claiming a transferable temperature-selection rule.
+The current evidence does not support a transferable point value of $\tau$. The Beauty development experiment identifies an interior effective region, while the external experiments retain their independently selected protocol. Temperature must be tuned on validation data because its role is to set loss concentration after radial scale is constrained; selecting it on test data would invalidate the mechanism comparison.
 
-We also pre-specify external checks on Yelp: the score-geometry decomposition above, matched endpoint runs, and diagnostics. These checks assess whether the proposed radial mechanism is visible beyond short Amazon purchase histories, not whether \cands{} wins a larger model comparison. The matched seeds identify two further failure modes. First, a post-hoc cosine replacement can fail even when retraining with directional calibration helps; score-time intervention and training-time intervention must therefore not be used as synonyms. Second, tail NDCG can decrease even when aggregate Recall and NDCG improve. A practitioner seeking tail coverage should use a method that introduces tail-specific evidence, objectives, or constraints rather than treating normalization as a substitute for them.
+The matched seeds identify three failure modes. First, a post-hoc sequence-cosine replacement is rank-invariant and cannot reproduce a retrained endpoint gain. Second, item-only normalization is not a safe proxy for joint normalization because it removes candidate-specific scale from the ordering. Third, tail NDCG can decrease even when overall NDCG and deep recall improve. A practitioner seeking tail coverage should therefore add tail-specific evidence, objectives, or constraints rather than treating score normalization as a substitute for them.
 
 \section{Discussion, Limitations, and Ethics}
-The central interpretation of this study is narrower than a generic claim for cosine similarity. The endpoint results, per-seed agreement, and fixed-state diagnostics jointly support an optimization-geometry explanation for the observed aggregate gain. They do not show that a norm is a nuisance variable in every recommender. A norm--frequency association is descriptive and can reflect utility, age, data collection, or other unobserved factors. In fact, the negative norm--popularity correlations in Table~\ref{tab:mechanism} are evidence against a convenient but unsupported causal story in which head items simply grow large norms.
+The central interpretation is narrower than a generic claim for cosine similarity. The endpoint results, direct radial-gradient check, temperature sweep, and frozen-state counterfactual jointly support a training-geometry explanation for the observed aggregate gain. The strongest logical link is negative: because sequence-only normalization preserves the fixed ranking, the gain cannot be attributed to a post-hoc sequence re-ranker. The gradient and distributional diagnostics then identify how training differs. They do not establish that score dispersion alone causes NDCG gains, or that a norm is a nuisance variable in every recommender.
 
-The long-tail result provides a second boundary. \cands{} neither reconstructs missing tail evidence nor guarantees tail exposure. Items with few interactions may need additional information, such as content, graph structure, uncertainty estimates, or explicitly constrained objectives; none is supplied by directional calibration. The appropriate practical role of \cands{} is therefore as a low-complexity scoring baseline or component whose overall benefit must be weighed against a separate tail objective, not as a replacement for a tail-recommendation method.
+The frequency result provides a concrete boundary. \cands{} neither reconstructs missing tail evidence nor guarantees tail exposure. The transition analysis shows that angular geometry can improve deep retrieval while failing to resolve local top-$K$ competition among sparse candidates. Items with few interactions may need content, graph structure, uncertainty estimates, or explicitly constrained objectives; none is supplied by directional calibration. The practical role of \cands{} is therefore a low-complexity geometric baseline or component, not a replacement for a tail-specific method.
 
-There are also threats to validity. The fixed-checkpoint comparison controls the sequence state, history mask, examples, and candidate universe but cannot identify a causal data-generation process. The current study uses one encoder family, three Amazon domains plus Yelp, fixed hidden width, and a fixed temperature. It reports variation over matched seeds rather than user-level bootstrap intervals. These design choices make the present attribution cleaner but limit external generalization. A submission-ready extension should test more encoder families and public benchmarks, tune temperature on validation only, and add a paired user-level uncertainty analysis.
+There are also threats to validity. The fixed-checkpoint comparison controls the sequence state, history mask, examples, and candidate universe but cannot identify a causal data-generation process. The current study uses one encoder family, three Amazon domains plus Yelp, fixed hidden width, and a validation-selected temperature protocol. It reports variation over matched seeds rather than user-level bootstrap intervals. These design choices make the present attribution cleaner but limit external generalization. A submission-ready extension should test more encoder families and public benchmarks, and add paired user-level uncertainty analysis.
 
 We use anonymous public interaction IDs, no sensitive attributes, no review text, and no synthetic behavior. Data redistribution follows the original source terms. Offline relevance metrics do not measure marketplace exposure, seller impact, or user welfare; any deployment would require coverage, fairness, and stakeholder analyses beyond the scope of this study.
 
 \section{Conclusion}
-Directional calibration replaces item-specific radial scale by shared temperature-controlled angular compatibility. We derived the rank-reversal condition that this restriction targets, established its tangential item-gradient geometry, and evaluated it with matched endpoints and checkpoint-level counterfactuals. Across three datasets and nine matched seed pairs, \cands{} improves overall full-sort ranking reliably, but it does not consistently improve tail NDCG@10. The strongest supported interpretation is therefore an optimization-geometry benefit for overall sequential ranking, with a clearly delimited long-tail boundary. This evidence-based framing is intended to make subsequent work more diagnostic: improvements can be attributed to representation geometry, while remaining tail failures point to the need for missing evidence rather than another untested score transformation.
+\cands{} makes a small but revealing change to sequential recommendation: it constrains final matching to temperature-controlled angular compatibility. We proved that sequence normalization is rank-invariant for a fixed state, established its tangential training geometry, and used matched endpoints, validation-only temperature selection, direct gradients, frozen-score counterfactuals, and rank transitions to test the resulting mechanism. The evidence supports an optimization-geometry and calibration benefit for overall sequential ranking, not a universal cosine or tail-recommendation claim. This framing makes the limitation useful: remaining top-$K$ failures identify missing fine-grained evidence rather than motivating another untested score transformation.
 \appendix
 \section{Per-seed Endpoint Results}
 Table~\ref{tab:perseed} reports the unaggregated test metrics behind Table~\ref{tab:main}. It shows that each of the nine matched seed pairs has a positive overall NDCG@10 difference, rather than the aggregate being driven by one outlying run.
