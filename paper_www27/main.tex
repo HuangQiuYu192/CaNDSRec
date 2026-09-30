@@ -2,7 +2,7 @@
 \settopmatter{printacmref=false}
 \acmConference[WWW '27]{The ACM Web Conference 2027}{2027}{Dublin, Ireland}
 \renewcommand\footnotetextcopyrightpermission[1]{}
-\usepackage{booktabs,amsmath,amssymb,bm,enumitem,xcolor}
+\usepackage{booktabs,amsmath,bm,enumitem,xcolor}
 \newcommand{\cands}{\textsc{CaNDS}}
 \newcommand{\sasrec}{\textsc{SASRec}}
 \newcommand{\scaledot}{\textsc{Scaled-Dot}}
@@ -129,11 +129,11 @@ The score family makes competing explanations testable rather than rhetorical. W
 \begin{table}[t]
 \caption{Mechanism claims and their required evidence. A checkmark denotes evidence already available in the current draft; ``TBD'' is intentionally not a result claim.}\label{tab:evidence-map}
 \centering\scriptsize
-\begin{tabular}{p{.24\columnwidth}p{.50\columnwidth}c}\toprule
+\begin{tabular}{p{.20\columnwidth}p{.42\columnwidth}p{.23\columnwidth}}\toprule
 Hypothesis&Necessary discriminating test&Status\\\midrule
-Frozen sequence re-ranking explains gains&For one fixed checkpoint, $s^{\mathrm{dot}}$ and $s^{\mathrm{seq}}$ change target ranks or top-$K$ lists&\checkmark\; falsified\\
+Frozen sequence re-ranking explains gains&For one fixed checkpoint, $s^{\mathrm{dot}}$ and $s^{\mathrm{seq}}$ change target ranks or top-$K$ lists&\textsf{falsified}\\
 Global logit scale explains gains&Validation-selected $s^{\mathrm{scale}}$ matches the relevant normalized endpoint&TBD\\
-Sequence normalization changes training geometry&Sequence radial-gradient energy vanishes; matched training trajectories differ&Tangent check \checkmark; trajectory TBD\\
+Sequence normalization changes training geometry&Sequence radial-gradient energy vanishes; matched training trajectories differ&Tangent check done; trajectory TBD\\
 Item normalization explains joint gains&Item-only endpoint and frozen candidate-list changes account for joint endpoint&TBD\\
 Effect is encoder-specific&The same controlled comparison is repeated on at least two additional encoder families&TBD\\\bottomrule
 \end{tabular}
