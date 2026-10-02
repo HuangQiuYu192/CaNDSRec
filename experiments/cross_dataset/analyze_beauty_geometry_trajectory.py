@@ -51,6 +51,9 @@ def config_dict(args, model_name, temperature):
         "eval_batch_size": 512,
         "learning_rate": 0.001,
         "weight_decay": 0.0,
+        # Explicitly disable RecBole's default sampled-negative setting: the
+        # controlled SASRec runs optimise full-softmax CE.
+        "train_neg_sample_args": None,
         "epochs": args.epochs,
         "eval_step": 1,
         # We need the whole trajectory rather than an early-stopped endpoint.
