@@ -11,9 +11,16 @@ The latter is computed with ``autograd.grad`` and never updates the model.
 import argparse
 import csv
 import os
+import sys
 from pathlib import Path
 
 import torch
+
+# The script is executed by path from ``experiments/cross_dataset``.  Add the
+# repository root explicitly so local model modules resolve on every host.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from recbole.config import Config
 from recbole.data import create_dataset, data_preparation
