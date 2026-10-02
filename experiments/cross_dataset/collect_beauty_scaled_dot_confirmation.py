@@ -43,7 +43,6 @@ def main() -> None:
             "seed": int(seed.group(1)), "temperature": args.temperature,
             "valid_recall@10": valid["recall@10"], "valid_ndcg@10": valid["ndcg@10"],
             "test_recall@10": test["recall@10"], "test_ndcg@10": test["ndcg@10"],
-            "test_recall@50": test["recall@50"], "test_ndcg@50": test["ndcg@50"],
             "log": str(path),
         })
     if not rows:
@@ -55,7 +54,7 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(rows)
 
-    metrics = ["test_recall@10", "test_ndcg@10", "test_recall@50", "test_ndcg@50"]
+    metrics = ["test_recall@10", "test_ndcg@10"]
     lines = [
         "# Beauty Scaled-Dot held-out-seed confirmation", "",
         f"Temperature is fixed to $\\tau={args.temperature:g}$ from the seed-2026 validation screen.",
@@ -64,11 +63,10 @@ def main() -> None:
     ]
     for metric in metrics:
         lines.append(f"| {metric} | {fmt([float(row[metric]) for row in rows])} |")
-    lines.extend(["", "## Per-seed results", "", "| seed | valid NDCG@10 | test Recall@10 | test NDCG@10 | test Recall@50 | test NDCG@50 |", "| ---: | ---: | ---: | ---: | ---: | ---: |"])
+    lines.extend(["", "## Per-seed results", "", "| seed | valid NDCG@10 | test Recall@10 | test NDCG@10 |", "| ---: | ---: | ---: | ---: |"])
     for row in rows:
         lines.append(
-            f"| {row['seed']} | {row['valid_ndcg@10']:.4f} | {row['test_recall@10']:.4f} | "
-            f"{row['test_ndcg@10']:.4f} | {row['test_recall@50']:.4f} | {row['test_ndcg@50']:.4f} |"
+            f"| {row['seed']} | {row['valid_ndcg@10']:.4f} | {row['test_recall@10']:.4f} | {row['test_ndcg@10']:.4f} |"
         )
     args.out.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"wrote {args.out} and {args.out.with_suffix('.md')}")
