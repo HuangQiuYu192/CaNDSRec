@@ -76,9 +76,9 @@ def build_cli_for_model(model_name: str, args: argparse.Namespace) -> list[str]:
         "--show_progress",
         "False",
     ]
-    if model_name in {"SASRec", "GeometrySASRec", "CANDSSASRec", "AngularSmoothCANDSSASRec", "SemanticCANDSSASRec", "TailSimCANDSSASRec"}:
+    if model_name in {"SASRec", "GeometrySASRec", "StopGradGeometrySASRec", "CANDSSASRec", "AngularSmoothCANDSSASRec", "SemanticCANDSSASRec", "TailSimCANDSSASRec"}:
         cli.extend(["--n_heads", str(args.n_heads), "--attn_dropout_prob", str(args.attn_dropout_prob)])
-    if model_name == "GeometrySASRec":
+    if model_name in {"GeometrySASRec", "StopGradGeometrySASRec"}:
         cli.extend(
             [
                 "--score_geometry", str(args.score_geometry),
