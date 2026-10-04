@@ -17,16 +17,35 @@ from .GeometrySASRec import GeometrySASRec
 class StopGradGeometrySASRec(GeometrySASRec):
     """GeometrySASRec with an identical forward score and detached norm paths."""
 
+    detach_sequence_norm = True
+    detach_item_norm = True
+
     def _score_inputs(self, seq_output):
         item_emb = self.item_embedding.weight
         if self.sequence_norm_power:
             sequence_norm = torch.linalg.vector_norm(
                 seq_output, dim=-1, keepdim=True
-            ).clamp_min(1e-12).detach()
+            ).clamp_min(1e-12)
+            if self.detach_sequence_norm:
+                sequence_norm = sequence_norm.detach()
             seq_output = seq_output / (sequence_norm ** self.sequence_norm_power)
         if self.item_norm_power:
             item_norm = torch.linalg.vector_norm(
                 item_emb, dim=-1, keepdim=True
-            ).clamp_min(1e-12).detach()
+            ).clamp_min(1e-12)
+            if self.detach_item_norm:
+                item_norm = item_norm.detach()
             item_emb = item_emb / (item_norm ** self.item_norm_power)
         return seq_output, item_emb
+
+
+class StopGradSequenceGeometrySASRec(StopGradGeometrySASRec):
+    """Detach only the sequence-side radial denominator in backpropagation."""
+
+    detach_item_norm = False
+
+
+class StopGradItemGeometrySASRec(StopGradGeometrySASRec):
+    """Detach only the item-side radial denominator in backpropagation."""
+
+    detach_sequence_norm = False

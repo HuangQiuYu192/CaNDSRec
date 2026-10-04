@@ -1,7 +1,11 @@
 from .BERT4Rec import BERT4Rec
 from .CANDSSASRec import CANDSSASRec
 from .GeometrySASRec import GeometrySASRec
-from .StopGradGeometrySASRec import StopGradGeometrySASRec
+from .StopGradGeometrySASRec import (
+    StopGradGeometrySASRec,
+    StopGradItemGeometrySASRec,
+    StopGradSequenceGeometrySASRec,
+)
 from .AngularSmoothCANDSSASRec import AngularSmoothCANDSSASRec
 from .CANDSFMLPRec import CANDSFMLPRec
 from .CANDSWEARec import CANDSWEARec
@@ -33,6 +37,8 @@ MODEL_DICT = {
     "CANDSSASRec": CANDSSASRec,
     "GeometrySASRec": GeometrySASRec,
     "StopGradGeometrySASRec": StopGradGeometrySASRec,
+    "StopGradSequenceGeometrySASRec": StopGradSequenceGeometrySASRec,
+    "StopGradItemGeometrySASRec": StopGradItemGeometrySASRec,
     "AngularSmoothCANDSSASRec": AngularSmoothCANDSSASRec,
     "CANDSFMLPRec": CANDSFMLPRec,
     "CANDSWEARec": CANDSWEARec,

@@ -11,7 +11,7 @@ from pathlib import Path
 
 PAIR = re.compile(r"\('([^']+)',\s*([-+0-9.eE]+)\)")
 BLOCK = re.compile(r"test result:\s*OrderedDict\(\[(.*?)\]\)", re.S)
-PATH = re.compile(r"([^/\\]+)[/\\]seed(\d+)[/\\](dot|joint|stopgrad_joint)\.log$")
+PATH = re.compile(r"([^/\\]+)[/\\]seed(\d+)[/\\]([a-z_]+)\.log$")
 
 
 def parse(path: Path) -> dict[str, float] | None:
