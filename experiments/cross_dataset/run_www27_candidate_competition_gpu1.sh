@@ -16,4 +16,6 @@ for d in ${DATASETS_STR:-Beauty Sports}; do
 done
 conda run --no-capture-output -n recbole python experiments/cross_dataset/collect_www27_candidate_competition.py \
   --input_dir "$OUT" --out "$OUT/summary.csv"
+conda run --no-capture-output -n recbole python experiments/cross_dataset/collect_www27_candidate_rank_strata.py \
+  --input_dir "$OUT" --out "$OUT/rank_strata.csv"
 echo ALL_DONE
