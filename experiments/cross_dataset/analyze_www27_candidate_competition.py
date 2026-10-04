@@ -77,10 +77,11 @@ def main() -> None:
             introduced_count = introduced.sum(1)
             angular_gap = positive_angular.unsqueeze(1) - user_angular
             norm_gap = log_item_norm[positives].unsqueeze(1) - log_item_norm.unsqueeze(0)
-            recovered_margin = (angular_gap * recovered).sum(1) / recovered_count.clamp_min(1)
-            recovered_norm_ratio = (norm_gap * recovered).sum(1) / recovered_count.clamp_min(1)
-            introduced_disadvantage = ((-angular_gap) * introduced).sum(1) / introduced_count.clamp_min(1)
-            introduced_norm_ratio = (norm_gap * introduced).sum(1) / introduced_count.clamp_min(1)
+            # Do not multiply false masks by -inf from history masking: 0 * -inf is NaN.
+            recovered_margin = torch.where(recovered, angular_gap, torch.zeros_like(angular_gap)).sum(1) / recovered_count.clamp_min(1)
+            recovered_norm_ratio = torch.where(recovered, norm_gap, torch.zeros_like(norm_gap)).sum(1) / recovered_count.clamp_min(1)
+            introduced_disadvantage = torch.where(introduced, -angular_gap, torch.zeros_like(angular_gap)).sum(1) / introduced_count.clamp_min(1)
+            introduced_norm_ratio = torch.where(introduced, norm_gap, torch.zeros_like(norm_gap)).sum(1) / introduced_count.clamp_min(1)
             dot_for_competitor = dot[users].clone()
             dot_for_competitor[torch.arange(len(users), device=device), positives] = -torch.inf
             competitor = dot_for_competitor.argmax(1)
