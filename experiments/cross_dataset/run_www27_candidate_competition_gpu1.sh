@@ -14,6 +14,6 @@ for d in ${DATASETS_STR:-Beauty Sports}; do
     done
   done
 done
-python experiments/cross_dataset/collect_www27_candidate_competition.py \
+conda run --no-capture-output -n recbole python experiments/cross_dataset/collect_www27_candidate_competition.py \
   --input_dir "$OUT" --out "$OUT/summary.csv"
 echo ALL_DONE
