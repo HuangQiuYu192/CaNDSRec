@@ -46,11 +46,11 @@ def main() -> None:
         grouped[(str(row["dataset"]), str(row["variant"]))].append(row)
     lines = ["# Forward-equal / backward-different gradient control", "",
              "`joint` and `stopgrad_joint` have the same forward formula at fixed parameters. The latter detaches radial denominators only in backpropagation.", "",
-             "| dataset | variant | seeds | Recall@10 | NDCG@10 | Recall@50 | NDCG@50 |",
+             "| dataset | variant | seeds | Recall@10 | NDCG@10 | Recall@20 | NDCG@20 |",
              "| --- | --- | ---: | ---: | ---: | ---: | ---: |"]
     for (dataset, variant), group in sorted(grouped.items()):
-        values = {key: mean_sd([float(row[key]) for row in group]) for key in ("recall@10", "ndcg@10", "recall@50", "ndcg@50")}
-        lines.append(f"| {dataset} | {variant} | {len(group)} | {values['recall@10'][0]:.4f} ± {values['recall@10'][1]:.4f} | {values['ndcg@10'][0]:.4f} ± {values['ndcg@10'][1]:.4f} | {values['recall@50'][0]:.4f} ± {values['recall@50'][1]:.4f} | {values['ndcg@50'][0]:.4f} ± {values['ndcg@50'][1]:.4f} |")
+        values = {key: mean_sd([float(row[key]) for row in group]) for key in ("recall@10", "ndcg@10", "recall@20", "ndcg@20")}
+        lines.append(f"| {dataset} | {variant} | {len(group)} | {values['recall@10'][0]:.4f} ± {values['recall@10'][1]:.4f} | {values['ndcg@10'][0]:.4f} ± {values['ndcg@10'][1]:.4f} | {values['recall@20'][0]:.4f} ± {values['recall@20'][1]:.4f} | {values['ndcg@20'][0]:.4f} ± {values['ndcg@20'][1]:.4f} |")
     args.output_prefix.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"wrote {len(rows)} completed rows")
 
