@@ -2,7 +2,7 @@
 \settopmatter{printacmref=false}
 \acmConference[WWW '27]{The ACM Web Conference 2027}{2027}{Dublin, Ireland}
 \renewcommand\footnotetextcopyrightpermission[1]{}
-\usepackage{booktabs,amsmath,bm,enumitem,xcolor}
+\usepackage{booktabs,amsmath,bm,enumitem,xcolor,float}
 \newcommand{\cands}{\textsc{CaNDS}}
 \newcommand{\sasrec}{\textsc{SASRec}}
 \newcommand{\scaledot}{\textsc{Scaled-Dot}}
@@ -331,22 +331,26 @@ We use anonymous public interaction IDs, no sensitive attributes, no review text
 
 \section{Conclusion}
 This paper provides a controlled template for studying direction and scale in sequential recommendation. It separates an exact frozen-ranking property of sequence normalization from the candidate-side ordering changes induced by item normalization, and turns global scale, training geometry, and candidate reordering into competing empirical explanations. Across the completed controls, global temperature accounts for part but not all of the endpoint gain; sequence-side normalization is a rank-invariant frozen intervention but a different training geometry; and joint normalization adds a candidate-side ordering constraint. The intended contribution is not a universal cosine-similarity prescription or a tail-recommendation method, but an evidence standard for explaining a small score-geometry intervention.
+\bibliographystyle{ACM-Reference-Format}\bibliography{references}
+% Keep wide appendix figures with their appendix material.  In two-column
+% ACM layouts, a pending figure* may otherwise float past the bibliography.
+\clearpage
 \appendix
 \section{Completed Phase-I Per-seed Endpoint Results}
 Table~\ref{tab:perseed} reports the unaggregated test metrics behind Table~\ref{tab:main}. It shows that each of the nine completed dot-versus-joint seed pairs has a positive overall NDCG@10 difference; it is not evidence that isolates the individual score components.
-\begin{table}[t]\caption{Per-seed overall NDCG@10.}\label{tab:perseed}\centering\scriptsize
+\begin{table}[H]\caption{Per-seed overall NDCG@10.}\label{tab:perseed}\centering\scriptsize
 \begin{tabular}{lrrr}\toprule Dataset&Seed&SASRec&Joint \cands{}\\\midrule
 Beauty&2023&.0399&.0471\\Beauty&2024&.0391&.0452\\Beauty&2025&.0391&.0460\\
 Sports&2023&.0199&.0269\\Sports&2024&.0203&.0271\\Sports&2025&.0201&.0273\\
 Toys&2023&.0412&.0482\\Toys&2024&.0414&.0508\\Toys&2025&.0408&.0495\\\bottomrule
 \end{tabular}\end{table}
 \section{Temperature Development Record}
-\begin{figure*}[t]
+\begin{figure}[H]
 \centering
-\includegraphics[width=.96\textwidth]{figures/FigA_scaled_dot_temperature_selection.pdf}
+\includegraphics[width=.96\columnwidth]{figures/FigA_scaled_dot_temperature_selection.pdf}
 \caption{Validation-only selection of the \scaledot{} temperature on development seed 2026. Red markers indicate the validation maximum, yielding $\tau=.125$ for Sports and $\tau=.0625$ for Toys. Test metrics are not shown and play no role in this choice.}
 \label{fig:temperature-selection}
-\end{figure*}
+\end{figure}
 
 \section{Reproducibility Checklist}
 \begin{enumerate}[leftmargin=*]
@@ -358,5 +362,4 @@ Toys&2023&.0412&.0482\\Toys&2024&.0414&.0508\\Toys&2025&.0408&.0495\\\bottomrule
 \item Every score-family run records geometry, $\tau$, normalization power, validation selection rule, and seed before final aggregation.
 \item The remaining P3 cross-encoder transfer is labelled as future work; all reported P0--P2 plots are generated from versioned source CSVs and scripts.
 \end{enumerate}
-\bibliographystyle{ACM-Reference-Format}\bibliography{references}
 \end{document}

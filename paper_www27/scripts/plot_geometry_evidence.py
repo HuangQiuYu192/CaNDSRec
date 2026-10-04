@@ -204,7 +204,9 @@ def plot_partial_screen() -> None:
 def plot_temperature_screen() -> None:
     """Supplementary Fig. A: validation-only Scaled-Dot temperature selection."""
     screen = pd.read_csv(DATA / "scaled_dot_temperature_screen.csv")
-    fig, axes = plt.subplots(1, 2, figsize=(7.15, 2.35), sharey=False)
+    # This is deliberately a vertical, single-column appendix figure.  A wide
+    # two-column figure* can float past the bibliography in ACM's last pages.
+    fig, axes = plt.subplots(2, 1, figsize=(3.38, 4.15), sharey=False)
     for ax, dataset in zip(axes, ["Sports", "Toys"]):
         group = screen[screen["dataset"] == dataset].sort_values("temperature")
         x = group["temperature"].to_numpy()
@@ -221,10 +223,10 @@ def plot_temperature_screen() -> None:
         ax.set_title(dataset)
         ax.grid(axis="y", color="#DDDDDD", linewidth=0.55)
         ax.set_axisbelow(True)
-    axes[0].legend(loc="lower left")
+    axes[0].legend(loc="lower left", fontsize=7)
     panel_label(axes[0], "a")
     panel_label(axes[1], "b")
-    fig.subplots_adjust(wspace=0.32, top=0.86, bottom=0.25, left=0.09, right=0.99)
+    fig.subplots_adjust(hspace=0.48, top=0.95, bottom=0.12, left=0.22, right=0.98)
     save(fig, "FigA_scaled_dot_temperature_selection")
 
 
