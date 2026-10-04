@@ -11,7 +11,7 @@
 \begin{document}
 \title{Disentangling Direction, Sequence Scale, and Item Scale in Sequential Recommendation}
 \begin{abstract}
-Dot-product sequential recommenders entangle directional compatibility with two distinct radial quantities: a sequence-specific logit scale and a candidate-specific ranking factor. We study how these factors affect a trained recommender rather than treating cosine scoring as a monolithic replacement. Our controlled score family separates raw dot products, globally scaled dot products, sequence-only normalization, item-only normalization, and joint normalization. We prove that sequence-only normalization preserves the complete within-user ranking for a fixed state, whereas item normalization can change candidate order, and that normalized scoring removes direct radial gradients on the normalized side. This yields falsifiable predictions: a frozen sequence-only counterfactual must preserve ranks; a scaled-dot control tests whether explicit temperature alone explains an endpoint gain; and item-side controls isolate candidate reordering. Existing matched-seed results show that joint normalization improves SASRec on three Amazon domains, while frozen sequence-only scores preserve more than 99.9\% of ranks on Beauty. The remaining experiments in this manuscript are organized as a pre-specified evidence program rather than reported as completed findings: \TODO{insert scaled-dot result}, \TODO{insert training-trajectory result}, and \TODO{insert cross-encoder confirmation}. The intended conclusion is deliberately bounded: directional normalization may be a useful training inductive bias under matched protocols; it is neither a universal cosine-similarity claim nor a long-tail solution.
+Dot-product sequential recommenders entangle directional compatibility with two radial quantities: a sequence-specific logit scale and a candidate-specific ranking factor. We study this final matching geometry through a controlled family of raw dot, globally scaled dot, sequence-only, item-only, and joint normalized scores. We prove that sequence-only normalization preserves every within-user rank for a fixed state, while item normalization can change candidate order; normalized scoring also removes the direct radial gradient on each normalized side. These facts yield discriminating tests rather than a generic cosine claim. On Sports and Toys, a globally scaled dot-product control selected on independent validation data improves the raw baseline but remains below sequence-only and joint normalization across three held-out seeds. A frozen Beauty sweep preserves sequence-side top-10 sets while item-side scaling progressively changes them, and a matched training trace shows numerically zero sequence-radial gradient energy for joint scoring. The evidence supports a bounded interpretation: directional normalization is a useful training inductive bias under these matched protocols, not a universal similarity rule or a long-tail solution.
 \end{abstract}
 \begin{CCSXML}
 <ccs2012>
@@ -83,7 +83,7 @@ The scalar $\tau>0$ controls logit concentration and gradient scale, but cannot 
 \label{fig:score-family}
 \end{figure*}
 
-\paragraph{Partial normalization as a dose-response control.} To test whether effects vary continuously with removed radial freedom, the planned extension uses $N_p(\bm v)=\bm v/(\|\bm v\|_2+\epsilon)^p$ for $p\in\{0,.25,.5,.75,1\}$. Each $p$ receives its own validation-selected temperature. This is a pre-specified template item: \TODO{insert completed partial-normalization protocol and results}. No monotonic performance claim is assumed.
+\paragraph{Partial normalization as a screening control.} To probe whether a partial removal of radial freedom reproduces a full normalized endpoint, we use $N_p(\bm v)=\bm v/(\|\bm v\|_2+\epsilon)^p$. The completed Beauty screen fixes $\tau=10$ and evaluates the available $(p_h,p_e)\in\{(0,0),(1,0),(0,1),(1,1),(.5,.5),(1,.5),(.5,1)\}$ configurations on one development seed. It is deliberately a mechanism screen rather than a selected multi-seed comparison; no monotonic performance claim is assumed.
 
 \subsection{Rank invariance and candidate-side asymmetry}
 Consider first sequence-only normalization, $s^{\mathrm{seq}}_{ui}=\tau\widehat{\bm h}_u^\top\bm e_i$. For a fixed nonzero state $\bm h_u$, $s^{\mathrm{seq}}_{ui}=\frac{\tau}{\|\bm h_u\|_2}s_{ui}$. The multiplier is positive and independent of $i$; it cannot change the within-user order. This property is exact in real arithmetic and motivates a frozen-representation counterfactual in our experiments.
@@ -139,9 +139,9 @@ The score family makes competing explanations testable rather than rhetorical. W
 \begin{tabular}{p{.20\columnwidth}p{.42\columnwidth}p{.23\columnwidth}}\toprule
 Hypothesis&Necessary discriminating test&Status\\\midrule
 Frozen sequence re-ranking explains gains&For one fixed checkpoint, $s^{\mathrm{dot}}$ and $s^{\mathrm{seq}}$ change target ranks or top-$K$ lists&\textsf{falsified}\\
-Global logit scale explains gains&Validation-selected $s^{\mathrm{scale}}$ matches the relevant normalized endpoint&TBD\\
-Sequence normalization changes training geometry&Sequence radial-gradient energy vanishes; matched training trajectories differ&Tangent check done; trajectory TBD\\
-Item normalization explains joint gains&Item-only endpoint and frozen candidate-list changes account for joint endpoint&TBD\\
+Global logit scale explains gains&Validation-selected $s^{\mathrm{scale}}$ matches the relevant normalized endpoint&Falsified on Sports/Toys\\
+Sequence normalization changes training geometry&Sequence radial-gradient energy vanishes; matched training trajectories differ&One matched Beauty trace\\
+Item normalization explains joint gains&Item-only endpoint and frozen candidate-list changes account for joint endpoint&Frozen test and screen reject sufficiency\\
 Effect is encoder-specific&The same controlled comparison is repeated on at least two additional encoder families&TBD\\\bottomrule
 \end{tabular}
 \end{table}
@@ -150,7 +150,7 @@ First, for a fixed representation we compare dot scores with sequence-normalized
 
 Second, we measure radial-gradient energy at the final matching head, score standard deviation, predictive entropy, and top-one/top-two margin after training. Equation~\ref{eq:tangent} predicts a zero direct radial component for normalized inputs. These distributional measures are descriptive diagnostics, not standalone causal proof.
 
-Third, the planned trajectory study records validation ranking, sequence and item norm distributions, radial-gradient energy, and score entropy at fixed training epochs under matched optimization. \TODO{insert checkpoint cadence, seed count, and trajectory figure}. Finally, paired rank transitions record movements among $1$--$5$, $6$--$10$, $11$--$20$, $21$--$50$, $51$--$100$, and $>100$. A model can improve deep retrieval while failing to improve top-$10$ ranking. Collectively, these controls distinguish a frozen-score property from a retrained endpoint effect; they do not identify a causal data-generating process.
+Third, the matched Beauty trajectory records validation ranking, sequence norm, radial-gradient energy, and score entropy at every epoch for 60 epochs. It uses one seed as a direct diagnostic of Eq.~\ref{eq:tangent}; it is not used for model selection or cross-seed inference. Finally, paired rank transitions record movements among $1$--$5$, $6$--$10$, $11$--$20$, $21$--$50$, $51$--$100$, and $>100$. A model can improve deep retrieval while failing to improve top-$10$ ranking. Collectively, these controls distinguish a frozen-score property from a retrained endpoint effect; they do not identify a causal data-generating process.
 
 \section{Experimental Protocol}
 \subsection{Data and evaluation split}
@@ -171,7 +171,7 @@ We evaluate by full-sort ranking over the complete catalogue after masking obser
 \subsection{Matched score-geometry comparison}
 All score-family members share architecture, chronological split, optimizer, batch size, early stopping rule, and random seed. The initial SASRec setup has two Transformer layers, 256 hidden units, two attention heads, inner size 1024, and maximum history length 50. The only intended method difference is the selected row of Eq.~\ref{eq:family}. Three seeds (2023, 2024, and 2025) are matched one-to-one for completed endpoint comparisons. We report mean and standard deviation, paired seed deltas, and the fraction of positive deltas.
 
-Temperature is selected on validation data for each geometry independently. The test set is never used to choose a checkpoint, $\tau$, normalization power, or encoder-specific configuration. We distinguish one development seed used to locate a feasible temperature region from independent endpoint confirmation. \TODO{insert final temperature-selection table including \scaledot{} and partial-normalization variants}.
+The test set is never used to choose a checkpoint, $\tau$, normalization power, or encoder-specific configuration. For the cross-domain \scaledot{} control, an independent development seed (2026) selects $\tau$ using validation NDCG@10, after which the choice is locked for seeds 2023--2025. The sequence and joint rows use the fixed $\tau=10$ matched score-family protocol. The Beauty partial-normalization screen is explicitly labelled as a fixed-$\tau$ development diagnostic rather than a selected endpoint result.
 
 \subsection{Pre-specified separation controls}
 The endpoint study is organized as an evidence ladder rather than a single ``dot versus cosine'' comparison:
@@ -202,7 +202,13 @@ Toys&\sasrec{}&.0749 $\pm$ .0048&.0411 $\pm$ .0003&.1507 $\pm$ .0102&.0575 $\pm$
 \end{tabular}}\end{table}
 
 \subsection{P0: does explicit global scale explain the endpoint?}
-\TODO{Insert the validation-selected \scaledot{} result before interpreting joint normalization as a geometry effect beyond global logit calibration. The completed table will contain dot, \scaledot{}, sequence-only, item-only, and joint scores under matched seeds, together with paired deltas and uncertainty.}
+Figure~\ref{fig:ladder} makes the global-scale control explicit on two held-out Amazon domains. \scaledot{} is stronger than the raw dot product on both datasets, so a better logit scale is a real part of the story. However, sequence-only normalization remains above \scaledot{} in NDCG@10 by .0017 on Sports and .0015 on Toys, and joint normalization remains above \scaledot{} by .0046 and .0036, respectively. Thus a global multiplier is insufficient to account for the normalized endpoints. The result is paired by seed and the \scaledot{} temperatures are locked from a separate validation-only development run.
+\begin{figure*}[t]
+\centering
+\includegraphics[width=.96\textwidth]{figures/Fig2_score_geometry_ladder.pdf}
+\caption{Held-out score-family comparison on Sports and Toys. Bars show mean test metrics over three matched seeds (2023--2025); error bars are one standard deviation. \scaledot{} uses a temperature selected on independent seed 2026 validation data and then held fixed. Sequence-only and joint use the common $\tau=10$ score-family protocol. Global scale improves dot scoring but does not reproduce the sequence-only or joint endpoints.}
+\label{fig:ladder}
+\end{figure*}
 
 \subsection{Paired user-level uncertainty}
 Seed variation shows that the endpoint difference is reproducible across optimization runs, but it does not quantify uncertainty over test users. We therefore resample paired leave-one-out test users within each Beauty seed, retaining the same user indices for SASRec and joint normalization. Table~\ref{tab:bootstrap} reports 2,000 paired bootstrap replicates. Every NDCG@10 interval excludes zero, from $[+.0059,+.0085]$ at seed 2023 to $[+.0046,+.0071]$ at seed 2024. The corresponding Recall@10 intervals also exclude zero. This analysis is confirmatory only: it uses already selected checkpoints and does not select a model or temperature.
@@ -249,6 +255,13 @@ Toys&.0461 $\pm$ .0037&.0522 $\pm$ .0012&.0266 $\pm$ .0006&.0238 $\pm$ .0021\\\b
 The decisive test of Proposition~1 uses the same frozen representation, history mask, target, and candidate catalogue. Across three Beauty seeds, replacing raw dot scores by sequence-normalized scores preserved the target rank for $99.91\%$--$99.96\%$ of test examples and preserved the entire top-$10$ list for approximately $99.99\%$. The small residual is attributable to finite-precision comparisons at near ties. Thus, a sequence-only score substitution is not a plausible explanation for the endpoint gain.
 
 The same counterfactual exposes the candidate-side asymmetry. Normalizing item vectors reduced raw-versus-item-normalized top-$10$ Jaccard overlap to .71--.79, depending on the trained checkpoint. Item normalization consequently changes the candidate list, whereas sequence normalization does not. This distinction is why joint normalization should be evaluated with a separate temperature rather than described as a stronger version of the same inference-time operation.
+\begin{figure*}[t]
+\centering
+\includegraphics[width=.96\textwidth]{figures/Fig3_frozen_radial_asymmetry.pdf}
+\caption{Frozen Beauty score sweep from one dot-product checkpoint (seed 2025). The encoder, item table, history masks, and candidate universe are held fixed. \textbf{a}, Removing any amount of sequence-side radial scale leaves the top-10 candidate set unchanged (Jaccard$=1$), whereas candidate-specific item-side scaling progressively changes it. \textbf{b}, Target-rank displacement is zero to displayed precision on the sequence side but increases under item-side scaling. This is a direct empirical check of the asymmetric frozen-ranking argument, not a retrained endpoint comparison.}
+\label{fig:frozen-asymmetry}
+\end{figure*}
+
 \begin{table}[t]\caption{Beauty mechanism diagnostics (mean $\pm$ standard deviation over three seeds). Score standard deviation, entropy, and margin are computed after history masking.}\label{tab:mechanism}\centering\scriptsize
 \resizebox{\columnwidth}{!}{\begin{tabular}{lrrrrr}\toprule
 Geometry&Score std.&Entropy&Top-1/2 margin&Seq. rank equality&Item Top-10 Jaccard\\\midrule
@@ -282,12 +295,22 @@ Yelp&Dot&.0575$\pm$.0005&.0368$\pm$.0002&.0831$\pm$.0014&.0432$\pm$.0004\\
 \end{tabular}}\end{table}
 
 \subsection{P1: training trajectories and geometric predictions}
-\TODO{Insert a four-panel trajectory figure. Panel (a): validation NDCG@10 against training epoch for dot, \scaledot{}, sequence-only, item-only, and joint scoring. Panel (b): direct sequence-side radial-gradient energy. Panel (c): sequence-state norm distribution. Panel (d): score entropy or logit spread. Report matched seeds and uncertainty bands.}
-
-The role of this section is not to claim that any descriptive statistic causes ranking quality. It is to test whether the learning-path signatures predicted by Eq.~\ref{eq:tangent} occur before, and co-vary with, endpoint differences. If \scaledot{} reproduces the trajectory and endpoint of a normalized score, the global-scale explanation takes precedence. If sequence-only normalization differs from \scaledot{} while retaining the frozen rank invariance of Proposition~1, the evidence favors a sequence-side training-path contribution.
+Figure~\ref{fig:trajectory} records a matched Beauty dot-versus-joint trace for 60 epochs (seed 2025). The joint trajectory reaches higher validation NDCG@10 while its direct sequence-side radial-gradient fraction remains at numerical zero, as Eq.~\ref{eq:tangent} requires. It also follows a different raw-norm and entropy trajectory. These curves are descriptive mechanism evidence from one matched seed, not an estimate of cross-seed uncertainty and not proof that entropy or norm alone causes ranking quality.
+\begin{figure*}[t]
+\centering
+\includegraphics[width=.96\textwidth]{figures/Fig4_training_geometry_trajectory.pdf}
+\caption{Beauty training-geometry trace for one matched seed (2025). \textbf{a}, Validation NDCG@10. \textbf{b}, Fraction of the final sequence-state gradient in the radial direction (log scale). \textbf{c}, Median raw sequence-state norm on a fixed training batch. \textbf{d}, Entropy of the full-softmax distribution on that batch. Dot and joint models use the same architecture, optimiser, data split, and seed. The zero-valued joint radial component is a direct geometric prediction; other panels are descriptive training-path correlates.}
+\label{fig:trajectory}
+\end{figure*}
 
 \subsection{P2: partial-normalization dose response}
-\TODO{Insert the validation-selected $p\in\{0,.25,.5,.75,1\}$ sweep. Plot validation and test metrics separately; report the selected $\tau$ for every $p$; do not select $p$ by test performance. State whether the response is monotonic, interior-optimal, flat, or inconsistent across seeds.}
+Figure~\ref{fig:partial} is a fixed-$\tau=10$, seed-2025 Beauty mechanism screen. The available half-normalized configurations do not recover the joint endpoint: $(p_h,p_e)=(.5,.5)$ yields NDCG@10=.0401, $(1,.5)$=.0453, and $(.5,1)$=.0397, versus .0460 for joint normalization. This non-monotonic local pattern rejects the claim that any radial shrinkage is sufficient; it is not a temperature-tuned dose-response curve and is not used for model selection.
+\begin{figure}[t]
+\centering
+\includegraphics[width=.92\columnwidth]{figures/Fig5_partial_normalization_screen.pdf}
+\caption{Beauty fixed-temperature partial-normalization screen (seed 2025, $\tau=10$). Each cell reports test NDCG@10 for an available pair of sequence- and item-side radial-removal powers; grey cells were not run. The screen is a one-seed mechanism diagnostic. Partial removal does not automatically reproduce the joint endpoint.}
+\label{fig:partial}
+\end{figure}
 
 \subsection{P3: transfer across encoder families}
 \TODO{Insert a compact table for SASRec, BSARec, and one contrastive sequential encoder under the same dot/\scaledot{}/sequence-only/joint protocol. State the exact released implementations, parameter budgets, tuning budget, and datasets. This section must report negative or mixed outcomes as boundaries rather than omit them.}
@@ -298,16 +321,16 @@ The current evidence does not support a transferable point value of $\tau$. The 
 The matched seeds identify three failure modes. First, a post-hoc sequence-cosine replacement is rank-invariant and cannot reproduce a retrained endpoint gain. Second, item-only normalization is not a safe proxy for joint normalization because it removes candidate-specific scale from the ordering. Third, tail NDCG can decrease even when overall NDCG and deep recall improve. A practitioner seeking tail coverage should therefore add tail-specific evidence, objectives, or constraints rather than treating score normalization as a substitute for them.
 
 \section{Discussion, Limitations, and Ethics}
-The central interpretation is narrower than a generic claim for cosine similarity. The frozen-state counterfactual establishes one exact negative result: sequence-only normalization cannot improve a fixed deterministic ranking through post-hoc re-ranking. The direct radial-gradient check establishes a distinct geometric fact: normalization removes the direct radial component on the normalized scoring path. The endpoint results show that joint angular scoring can improve ranking under the completed matched protocols. What remains open until P0--P3 are completed is the relative contribution of global temperature, sequence-side training geometry, and item-side reordering. The final manuscript must preserve this distinction rather than call all evidence a single causal mechanism.
+The central interpretation is narrower than a generic claim for cosine similarity. The frozen-state counterfactual establishes one exact negative result: sequence-only normalization cannot improve a fixed deterministic ranking through post-hoc re-ranking. The direct radial-gradient check establishes a distinct geometric fact: normalization removes the direct radial component on the normalized scoring path. The held-out scale control shows that explicit temperature helps but does not account for the sequence-only or joint endpoints. The available partial screen rejects arbitrary radial shrinkage as a sufficient explanation. What remains open is transfer beyond the SASRec encoder family and the causal contribution of each training-path correlate.
 
 The frequency result provides a concrete boundary. \cands{} neither reconstructs missing tail evidence nor guarantees tail exposure. The transition analysis shows that angular geometry can improve deep retrieval while failing to resolve local top-$K$ competition among sparse candidates. Items with few interactions may need content, graph structure, uncertainty estimates, or explicitly constrained objectives; none is supplied by directional calibration. The practical role of \cands{} is therefore a low-complexity geometric baseline or component, not a replacement for a tail-specific method.
 
-There are also threats to validity. The fixed-checkpoint comparison controls sequence state, history mask, examples, and candidate universe but cannot identify a causal data-generation process. The completed study uses one encoder family, three Amazon domains plus Yelp, fixed hidden width, and a validation-selected temperature protocol. It reports matched-seed variation and, on Beauty, within-seed paired user bootstrap intervals. These design choices make current attribution cleaner but limit external generalization. P0--P3 are therefore not optional decoration: they are the evidence needed to establish the intended scope.
+There are also threats to validity. The fixed-checkpoint comparison controls sequence state, history mask, examples, and candidate universe but cannot identify a causal data-generation process. The completed study uses one encoder family, three Amazon domains plus Yelp, fixed hidden width, and a validation-selected \scaledot{} temperature protocol. It reports matched-seed variation and, on Beauty, within-seed paired user bootstrap intervals. These design choices make current attribution cleaner but limit external generalization; in particular, the trajectory and partial screen are single-seed diagnostics and cross-encoder transfer remains open.
 
 We use anonymous public interaction IDs, no sensitive attributes, no review text, and no synthetic behavior. Data redistribution follows the original source terms. Offline relevance metrics do not measure marketplace exposure, seller impact, or user welfare; any deployment would require coverage, fairness, and stakeholder analyses beyond the scope of this study.
 
 \section{Conclusion}
-This paper provides a controlled template for studying direction and scale in sequential recommendation. It separates an exact frozen-ranking property of sequence normalization from the candidate-side ordering changes induced by item normalization, and turns global scale, training geometry, and candidate reordering into competing empirical explanations. Completed results establish the endpoint promise of joint angular scoring and the rank-invariant sequence-side counterfactual. \TODO{After P0--P3, replace this sentence with the narrowest conclusion supported by the scaled-dot, trajectory, dose-response, and cross-encoder evidence.} The intended contribution is not a universal cosine-similarity prescription or a tail-recommendation method, but an evidence standard for explaining a small score-geometry intervention.
+This paper provides a controlled template for studying direction and scale in sequential recommendation. It separates an exact frozen-ranking property of sequence normalization from the candidate-side ordering changes induced by item normalization, and turns global scale, training geometry, and candidate reordering into competing empirical explanations. Across the completed controls, global temperature accounts for part but not all of the endpoint gain; sequence-side normalization is a rank-invariant frozen intervention but a different training geometry; and joint normalization adds a candidate-side ordering constraint. The intended contribution is not a universal cosine-similarity prescription or a tail-recommendation method, but an evidence standard for explaining a small score-geometry intervention.
 \appendix
 \section{Completed Phase-I Per-seed Endpoint Results}
 Table~\ref{tab:perseed} reports the unaggregated test metrics behind Table~\ref{tab:main}. It shows that each of the nine completed dot-versus-joint seed pairs has a positive overall NDCG@10 difference; it is not evidence that isolates the individual score components.
@@ -317,6 +340,14 @@ Beauty&2023&.0399&.0471\\Beauty&2024&.0391&.0452\\Beauty&2025&.0391&.0460\\
 Sports&2023&.0199&.0269\\Sports&2024&.0203&.0271\\Sports&2025&.0201&.0273\\
 Toys&2023&.0412&.0482\\Toys&2024&.0414&.0508\\Toys&2025&.0408&.0495\\\bottomrule
 \end{tabular}\end{table}
+\section{Temperature Development Record}
+\begin{figure*}[t]
+\centering
+\includegraphics[width=.96\textwidth]{figures/FigA_scaled_dot_temperature_selection.pdf}
+\caption{Validation-only selection of the \scaledot{} temperature on development seed 2026. Red markers indicate the validation maximum, yielding $\tau=.125$ for Sports and $\tau=.0625$ for Toys. Test metrics are not shown and play no role in this choice.}
+\label{fig:temperature-selection}
+\end{figure*}
+
 \section{Reproducibility Checklist}
 \begin{enumerate}[leftmargin=*]
 \item Popularity groups use training interactions only.
@@ -325,7 +356,7 @@ Toys&2023&.0412&.0482\\Toys&2024&.0414&.0508\\Toys&2025&.0408&.0495\\\bottomrule
 \item Every endpoint row records data version, seed, checkpoint, and command.
 \item Reported uncertainty includes matched-seed variation and, for Beauty joint normalization, paired user-level bootstrap intervals.
 \item Every score-family run records geometry, $\tau$, normalization power, validation selection rule, and seed before final aggregation.
-\item P0--P3 results remain labeled as pending until their scripts, logs, validation selections, and test summaries are all available.
+\item The remaining P3 cross-encoder transfer is labelled as future work; all reported P0--P2 plots are generated from versioned source CSVs and scripts.
 \end{enumerate}
 \bibliographystyle{ACM-Reference-Format}\bibliography{references}
 \end{document}
