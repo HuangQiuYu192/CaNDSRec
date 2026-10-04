@@ -64,6 +64,23 @@ def main() -> None:
 
             dot_rank = (dot[users] > dot[users, positives].unsqueeze(1)).sum(1) + 1
             angular_rank = (angular[users] > angular[users, positives].unsqueeze(1)).sum(1) + 1
+            user_dot, user_angular = dot[users], angular[users]
+            positive_dot = user_dot[torch.arange(len(users), device=device), positives]
+            positive_angular = user_angular[torch.arange(len(users), device=device), positives]
+            log_item_norm = torch.log(items.norm(dim=1).clamp_min(1e-12))
+
+            # Pairwise reversals are the direct source of a rank change.  A recovered
+            # competitor outranks the target by dot product but not by angle.
+            recovered = (user_dot > positive_dot.unsqueeze(1)) & (user_angular < positive_angular.unsqueeze(1))
+            introduced = (user_dot < positive_dot.unsqueeze(1)) & (user_angular > positive_angular.unsqueeze(1))
+            recovered_count = recovered.sum(1)
+            introduced_count = introduced.sum(1)
+            angular_gap = positive_angular.unsqueeze(1) - user_angular
+            norm_gap = log_item_norm[positives].unsqueeze(1) - log_item_norm.unsqueeze(0)
+            recovered_margin = (angular_gap * recovered).sum(1) / recovered_count.clamp_min(1)
+            recovered_norm_ratio = (norm_gap * recovered).sum(1) / recovered_count.clamp_min(1)
+            introduced_disadvantage = ((-angular_gap) * introduced).sum(1) / introduced_count.clamp_min(1)
+            introduced_norm_ratio = (norm_gap * introduced).sum(1) / introduced_count.clamp_min(1)
             dot_for_competitor = dot[users].clone()
             dot_for_competitor[torch.arange(len(users), device=device), positives] = -torch.inf
             competitor = dot_for_competitor.argmax(1)
@@ -72,12 +89,19 @@ def main() -> None:
             angular_margin = (unit_sequence * unit_items[positives]).sum(1) - (unit_sequence * unit_items[competitor]).sum(1)
             log_norm_ratio = torch.log(items[positives].norm(dim=1).clamp_min(1e-12)) - torch.log(items[competitor].norm(dim=1).clamp_min(1e-12))
 
-            for d_rank, a_rank, margin, ratio in zip(dot_rank.tolist(), angular_rank.tolist(), angular_margin.tolist(), log_norm_ratio.tolist()):
+            for d_rank, a_rank, margin, ratio, rec_n, rec_margin, rec_ratio, add_n, add_margin, add_ratio in zip(
+                dot_rank.tolist(), angular_rank.tolist(), angular_margin.tolist(), log_norm_ratio.tolist(),
+                recovered_count.tolist(), recovered_margin.tolist(), recovered_norm_ratio.tolist(),
+                introduced_count.tolist(), introduced_disadvantage.tolist(), introduced_norm_ratio.tolist(),
+            ):
                 rows.append({
                     "dataset": args.dataset, "seed": args.seed, "trained_geometry": args.variant,
                     "transition": transition(d_rank, a_rank), "dot_rank": d_rank, "angular_rank": a_rank,
                     "rank_delta": d_rank - a_rank, "angular_margin_vs_dot_competitor": margin,
                     "log_target_over_competitor_norm": ratio,
+                    "recovered_competitors": rec_n, "recovered_angular_margin": rec_margin,
+                    "recovered_log_norm_ratio": rec_ratio, "introduced_competitors": add_n,
+                    "introduced_angular_disadvantage": add_margin, "introduced_log_norm_ratio": add_ratio,
                 })
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

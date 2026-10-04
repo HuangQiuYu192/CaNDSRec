@@ -9,7 +9,11 @@ from pathlib import Path
 from statistics import mean, stdev
 
 
-METRICS = ("n", "share", "rank_delta", "angular_margin", "log_norm_ratio")
+METRICS = (
+    "n", "share", "rank_delta", "angular_margin", "log_norm_ratio",
+    "recovered_competitors", "recovered_angular_margin", "recovered_log_norm_ratio",
+    "introduced_competitors", "introduced_angular_disadvantage", "introduced_log_norm_ratio",
+)
 
 
 def mean_std(values: list[float]) -> tuple[float, float]:
@@ -40,6 +44,12 @@ def main() -> None:
                 "rank_delta": mean(float(row["rank_delta"]) for row in subset),
                 "angular_margin": mean(float(row["angular_margin_vs_dot_competitor"]) for row in subset),
                 "log_norm_ratio": mean(float(row["log_target_over_competitor_norm"]) for row in subset),
+                "recovered_competitors": mean(float(row["recovered_competitors"]) for row in subset),
+                "recovered_angular_margin": mean(float(row["recovered_angular_margin"]) for row in subset),
+                "recovered_log_norm_ratio": mean(float(row["recovered_log_norm_ratio"]) for row in subset),
+                "introduced_competitors": mean(float(row["introduced_competitors"]) for row in subset),
+                "introduced_angular_disadvantage": mean(float(row["introduced_angular_disadvantage"]) for row in subset),
+                "introduced_log_norm_ratio": mean(float(row["introduced_log_norm_ratio"]) for row in subset),
             })
 
     grouped: dict[tuple, list[dict]] = defaultdict(list)
