@@ -98,7 +98,7 @@ def add_cands_arguments(parser):
 
 
 def add_model_arguments(parser, base_model, dataset):
-    if base_model in {'SASRec', 'GeometrySASRec', 'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'SemanticCANDSSASRec', 'TailCLCalibratedCANDSSASRec', 'TailSimCANDSSASRec'}:
+    if base_model in {'SASRec', 'GeometrySASRec', 'StopGradGeometrySASRec', 'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'SemanticCANDSSASRec', 'TailCLCalibratedCANDSSASRec', 'TailSimCANDSSASRec'}:
         parser.add_argument('--hidden_size', default=64, type=int)
         parser.add_argument('--n_layers', default=2, type=int)
         parser.add_argument('--n_heads', default=2, type=int)
@@ -109,9 +109,9 @@ def add_model_arguments(parser, base_model, dataset):
         parser.add_argument('--hidden_act', default='gelu', type=str)
         parser.add_argument('--layer_norm_eps', default=1e-12, type=float)
         parser.add_argument('--initializer_range', default=0.02, type=float)
-        if base_model in {'GeometrySASRec', 'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'SemanticCANDSSASRec', 'TailCLCalibratedCANDSSASRec', 'TailSimCANDSSASRec'}:
+        if base_model in {'GeometrySASRec', 'StopGradGeometrySASRec', 'CANDSSASRec', 'AngularSmoothCANDSSASRec', 'CalibratedCANDSSASRec', 'LearnableTempCANDSSASRec', 'DataAwareTempCANDSSASRec', 'LinearItemCANDSSASRec', 'SemanticCANDSSASRec', 'TailCLCalibratedCANDSSASRec', 'TailSimCANDSSASRec'}:
             add_cands_arguments(parser)
-        if base_model == 'GeometrySASRec':
+        if base_model in {'GeometrySASRec', 'StopGradGeometrySASRec'}:
             parser.add_argument('--score_geometry', default='both', choices=['sequence', 'item', 'both', 'partial'])
             parser.add_argument('--sequence_norm_power', default=1.0, type=float)
             parser.add_argument('--item_norm_power', default=1.0, type=float)
