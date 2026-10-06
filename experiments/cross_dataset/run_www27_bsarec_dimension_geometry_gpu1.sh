@@ -23,7 +23,7 @@ for dim in 64 128 256; do
       --model "$model" --checkpoint "$ckpt" --dimension "$dim" --gpu_id "$GPU_ID" --out "$out"
   done
 done
-python - <<'PY'
+conda run --no-capture-output -n recbole python - <<'PY'
 import csv
 from pathlib import Path
 root = Path("analysis_results/www27_bsarec_dimension_geometry")
@@ -34,6 +34,17 @@ for path in sorted(root.glob("*.csv")):
 fields = list(rows[0]) if rows else []
 with (root / "summary.csv").open("w", newline="", encoding="utf-8") as f:
     w = csv.DictWriter(f, fieldnames=fields); w.writeheader(); w.writerows(rows)
+with (root / "summary.md").open("w", encoding="utf-8") as f:
+    f.write("# BSARec dimension--geometry probe on Beauty\n\n")
+    f.write("Frozen checkpoint analysis, seed 2025. No value in this table was used to select a dimension or temperature. `alpha=0` is angular scoring and `alpha=1` restores the dot-product candidate order for the same checkpoint.\n\n")
+    f.write("| model | d | NDCG@10 angular | NDCG@10 radial | radial drop | item log-norm std. | Top-10 Jaccard | local inversion | angular margin |\n")
+    f.write("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n")
+    for row in sorted(rows, key=lambda r: (r["model"], int(r["dimension"]))):
+        angular = float(row["ndcg10_alpha_0"]); radial = float(row["ndcg10_alpha_1"])
+        f.write(f"| {row['model']} | {row['dimension']} | {angular:.4f} | {radial:.4f} | {angular-radial:+.4f} | "
+                f"{float(row['item_log_norm_std']):.4f} | {float(row['top10_jaccard_dot_vs_angular']):.4f} | "
+                f"{float(row['local_inversion_rate']):.4f} | {float(row['angular_margin']):+.4f} |\n")
 print(f"wrote {root / 'summary.csv'}")
+print(f"wrote {root / 'summary.md'}")
 PY
 echo ALL_DONE
