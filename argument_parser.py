@@ -270,7 +270,7 @@ def add_model_arguments(parser, base_model, dataset):
         parser.add_argument('--initializer_range', default=0.02, type=float)
         if base_model == 'CANDSFMLPRec':
             add_cands_arguments(parser)
-    elif base_model in {'BSARec', 'CANDSBSARec', 'ScaledDotBSARec'}:
+    elif base_model in {'BSARec', 'CANDSBSARec', 'ScaledDotBSARec', 'GeometryBSARec', 'StopGradSequenceGeometryBSARec'}:
         parser.add_argument('--c', default=4, type=int)
         parser.add_argument('--alpha', default=0.5, type=float)
         parser.add_argument('--hidden_size', default=64, type=int)
@@ -283,8 +283,12 @@ def add_model_arguments(parser, base_model, dataset):
         parser.add_argument('--hidden_act', default='gelu', type=str)
         parser.add_argument('--layer_norm_eps', default=1e-12, type=float)
         parser.add_argument('--initializer_range', default=0.02, type=float)
-        if base_model in {'CANDSBSARec', 'ScaledDotBSARec'}:
+        if base_model in {'CANDSBSARec', 'ScaledDotBSARec', 'GeometryBSARec', 'StopGradSequenceGeometryBSARec'}:
             add_cands_arguments(parser)
+        if base_model in {'GeometryBSARec', 'StopGradSequenceGeometryBSARec'}:
+            parser.add_argument('--score_geometry', default='both', choices=['sequence', 'item', 'both', 'partial'])
+            parser.add_argument('--sequence_norm_power', default=1.0, type=float)
+            parser.add_argument('--item_norm_power', default=1.0, type=float)
     elif base_model == 'ELCRec':
         parser.add_argument('--aug_types', nargs='+', default=['crop', 'mask', 'reorder'])
         parser.add_argument('--crop_ratio', default=0.2, type=float)
