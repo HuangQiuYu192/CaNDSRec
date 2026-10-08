@@ -21,6 +21,7 @@ from .GRU4Rec import GRU4Rec
 from .WEARec import WEARec
 from .BSARec import BSARec
 from .CANDSBSARec import CANDSBSARec
+from .ScaledDotBSARec import ScaledDotBSARec
 from .FMLPRec import FMLPRec
 from .CL4SRec import CL4SRec
 from .DuoRec import DuoRec
@@ -60,6 +61,7 @@ MODEL_DICT = {
     "FMLPRec": FMLPRec,
     "BSARec": BSARec,
     "CANDSBSARec": CANDSBSARec,
+    "ScaledDotBSARec": ScaledDotBSARec,
     "WEARec": WEARec,
 }
 

@@ -95,8 +95,14 @@ def main() -> None:
     test_data, model = build_model(args)
     device = next(model.parameters()).device
 
-    totals = {"n": 0, "angular_margin": 0.0, "pos_log_norm_minus_hard_neg": 0.0,
-              "top10_jaccard": 0.0, "local_inversion": 0.0, "local_pairs": 0}
+    totals = {
+        "n": 0, "angular_margin": 0.0, "positive_angular": 0.0,
+        "hard_negative_angular": 0.0, "pos_log_norm_minus_hard_neg": 0.0,
+        "sequence_norm": 0.0, "positive_effective_scale": 0.0,
+        "dot_logit_std": 0.0, "angular_logit_std": 0.0,
+        "dot_entropy": 0.0, "angular_entropy": 0.0,
+        "top10_jaccard": 0.0, "local_inversion": 0.0, "local_pairs": 0,
+    }
     radial = {alpha: {"recall10": 0.0, "ndcg10": 0.0} for alpha in alphas}
     with torch.no_grad():
         items = model.item_embedding.weight
@@ -120,9 +126,32 @@ def main() -> None:
             hard_neg = angular_without_positive.argmax(dim=1)
             margin = angular[row_index, positives] - angular[row_index, hard_neg]
             totals["angular_margin"] += margin.sum().item()
+            totals["positive_angular"] += angular[row_index, positives].sum().item()
+            totals["hard_negative_angular"] += angular[row_index, hard_neg].sum().item()
             totals["pos_log_norm_minus_hard_neg"] += (
                 item_norm[positives].log() - item_norm[hard_neg].log()
             ).sum().item()
+            seq_norm = sequence[users].norm(dim=1)
+            totals["sequence_norm"] += seq_norm.sum().item()
+            totals["positive_effective_scale"] += (seq_norm * item_norm[positives]).sum().item()
+
+            # The raw dot head has a dimension-dependent logit scale. Measure
+            # it after exactly the same history masking used for ranking.
+            def score_stats(score: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+                finite = torch.isfinite(score)
+                count = finite.sum(dim=1).clamp_min(1)
+                clean = torch.where(finite, score, torch.zeros_like(score))
+                mean = clean.sum(dim=1) / count
+                std = (((clean - mean.unsqueeze(1)) ** 2 * finite).sum(dim=1) / count).sqrt()
+                prob = torch.softmax(score, dim=1)
+                entropy = -(prob * prob.clamp_min(1e-12).log()).sum(dim=1)
+                return std, entropy
+            dot_std, dot_entropy = score_stats(dot)
+            angular_std, angular_entropy = score_stats(angular)
+            totals["dot_logit_std"] += dot_std.sum().item()
+            totals["angular_logit_std"] += angular_std.sum().item()
+            totals["dot_entropy"] += dot_entropy.sum().item()
+            totals["angular_entropy"] += angular_entropy.sum().item()
 
             # Candidate-list compatibility and pairwise disagreement within the
             # angular local candidate set.  This evaluates order, not metrics.
@@ -154,7 +183,15 @@ def main() -> None:
         "dataset": args.dataset, "seed": args.seed, "model": args.model,
         "dimension": args.dimension, "n": n, "item_log_norm_std": float(item_norm.log()[1:].std().item()),
         "angular_margin": totals["angular_margin"] / n,
+        "positive_angular": totals["positive_angular"] / n,
+        "hard_negative_angular": totals["hard_negative_angular"] / n,
         "pos_log_norm_minus_hard_neg": totals["pos_log_norm_minus_hard_neg"] / n,
+        "sequence_norm_mean": totals["sequence_norm"] / n,
+        "positive_effective_scale_mean": totals["positive_effective_scale"] / n,
+        "dot_logit_std_mean": totals["dot_logit_std"] / n,
+        "angular_logit_std_mean": totals["angular_logit_std"] / n,
+        "dot_entropy_mean": totals["dot_entropy"] / n,
+        "angular_entropy_mean": totals["angular_entropy"] / n,
         "top10_jaccard_dot_vs_angular": totals["top10_jaccard"] / n,
         "local_inversion_rate": totals["local_inversion"] / totals["local_pairs"],
     }
