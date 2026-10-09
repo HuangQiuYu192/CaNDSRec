@@ -23,6 +23,7 @@ from .BSARec import BSARec
 from .CANDSBSARec import CANDSBSARec
 from .ScaledDotBSARec import ScaledDotBSARec
 from .GeometryBSARec import GeometryBSARec, StopGradSequenceGeometryBSARec
+from .ScaleJitterBSARec import ScaleJitterBSARec, ScaleJitterSequenceGeometryBSARec
 from .FMLPRec import FMLPRec
 from .CL4SRec import CL4SRec
 from .DuoRec import DuoRec
@@ -65,6 +66,8 @@ MODEL_DICT = {
     "ScaledDotBSARec": ScaledDotBSARec,
     "GeometryBSARec": GeometryBSARec,
     "StopGradSequenceGeometryBSARec": StopGradSequenceGeometryBSARec,
+    "ScaleJitterBSARec": ScaleJitterBSARec,
+    "ScaleJitterSequenceGeometryBSARec": ScaleJitterSequenceGeometryBSARec,
     "WEARec": WEARec,
 }
 
